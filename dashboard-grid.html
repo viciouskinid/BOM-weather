@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grid Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: white;
+      color: #1f2937;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: 250px;
+      background-image: url("https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-moods/mostly-clear-night.webp"), linear-gradient(-180deg, rgb(0, 30, 60) 0%, rgb(0, 59, 113) 100%);
+      color: white;
+      padding: 30px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .location {
+      font-size: 44px;
+      font-family: "Inter", "Inter-fallback", sans-serif;
+      opacity: 0.9;
+      margin-bottom: 10px;
+    }
+
+    .current-icon {
+      width: 80px;
+      height: 80px;
+      margin: 20px auto;
+      display: block;
+    }
+
+    .current-icon img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .current-temp {
+      font-size: 4rem;
+      font-weight: 300;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .condition {
+      font-size: 1.1rem;
+      text-align: center;
+      opacity: 0.9;
+      margin-top: 10px;
+    }
+
+    .current-details {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 0.95rem;
+    }
+
+    .detail-label {
+      opacity: 0.8;
+    }
+
+    .detail-value {
+      font-weight: 600;
+    }
+
+    .main-container {
+      flex: 1;
+      padding: 0;
+      overflow: auto;
+      height: 100vh;
+    }
+
+    .forecast-grid {
+      display: grid;
+      grid-template-columns: 100px repeat(7, 1fr);
+      grid-auto-rows: auto;
+      gap: 0;
+      border: none;
+      background: white;
+      min-width: 900px;
+    }
+    
+    .grid-header,
+    .time-cell,
+    .forecast-cell {
+      display: block;
+    }
+
+    .grid-header {
+      background: white;
+      padding: 15px;
+      font-weight: 600;
+      border-bottom: 1px solid #d1d5db;
+      border-right: 1px solid #000;
+      text-align: center;
+      font-size: 1rem;
+      color: #1f2937;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .grid-header.time-header {
+      text-align: left;
+      left: 0;
+      z-index: 11;
+    }
+
+    .grid-header:nth-child(8) {
+      border-right: none;
+    }
+
+    .grid-header:last-child {
+      border-right: none;
+    }
+
+    .time-cell {
+      padding: 20px 15px;
+      font-weight: 600;
+      border-right: 1px solid #000;
+      border-bottom: 1px solid #d1d5db;
+      background: white;
+      font-size: 0.95rem;
+      color: #1f2937;
+      position: sticky;
+      left: 0;
+      z-index: 9;
+    }
+
+    .forecast-cell {
+      padding: 20px 15px;
+      text-align: center;
+      border-bottom: 1px solid #d1d5db;
+      background: white;
+      transition: background 0.2s;
+      border-right: 1px solid #000;
+    }
+
+    .forecast-cell:hover {
+      background: #f9fafb;
+    }
+
+    .forecast-cell.night {
+      background: #f3f4f6;
+    }
+
+    .forecast-cell:nth-child(8n) {
+      border-right: none;
+    }
+
+    .cell-icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 8px;
+      display: block;
+    }
+
+    .cell-icon img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .cell-temp {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 5px;
+    }
+
+    .cell-rain {
+      font-size: 0.85rem;
+      color: #3b82f6;
+      font-weight: 500;
+    }
+
+    .cell-rain.high {
+      color: #ef4444;
+      font-weight: 600;
+    }
+
+    .time-cell.current-hour {
+      background: #bfdbfe;
+      font-weight: bold;
+    }
+
+    .forecast-cell.current-hour {
+      background: #dbeafe !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="location">Hobart</div>
+    <div class="current-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+    <div class="current-temp" id="sidebar-temp">--°</div>
+    <div class="condition" id="sidebar-condition">Loading...</div>
+    
+    <div class="current-details" id="sidebar-details">
+      <div class="detail-row">
+        <span class="detail-label">Feels Like</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Wind</span>
+        <span class="detail-value">-- kt</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Humidity</span>
+        <span class="detail-value">--%</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Dew Point</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Today's max</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Overnight min</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Tomorrow's max</span>
+        <span class="detail-value">--°</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="forecast-grid" id="forecast-grid">
+      <!-- Header Row -->
+      <div class="grid-header time-header">Time</div>
+      <div class="grid-header">Today</div>
+      <div class="grid-header">Tomorrow</div>
+      <div class="grid-header">Sunday</div>
+      <div class="grid-header">Monday</div>
+      <div class="grid-header">Tuesday</div>
+      <div class="grid-header">Wednesday</div>
+      <div class="grid-header">Thursday</div>
+
+      <!-- 3:00 PM -->
+      <div class="time-cell">3:00 PM</div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">17°</div>
+        <div class="cell-rain">0%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">16°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">15°</div>
+        <div class="cell-rain">20%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">18°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">17°</div>
+        <div class="cell-rain">15%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/rain.svg" alt="Rain"></div>
+        <div class="cell-temp">16°</div>
+        <div class="cell-rain high">55%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">17°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+
+      <!-- 6:00 PM -->
+      <div class="time-cell">6:00 PM</div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">16°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">15°</div>
+        <div class="cell-rain">15%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/rain.svg" alt="Rain"></div>
+        <div class="cell-temp">14°</div>
+        <div class="cell-rain high">45%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">16°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">15°</div>
+        <div class="cell-rain">20%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/rain.svg" alt="Rain"></div>
+        <div class="cell-temp">14°</div>
+        <div class="cell-rain high">60%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">16°</div>
+        <div class="cell-rain">15%</div>
+      </div>
+
+      <!-- 9:00 PM -->
+      <div class="time-cell">9:00 PM</div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">14°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">13°</div>
+        <div class="cell-rain">20%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/rain.svg" alt="Rain"></div>
+        <div class="cell-temp">13°</div>
+        <div class="cell-rain high">60%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">14°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">13°</div>
+        <div class="cell-rain">15%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/rain.svg" alt="Rain"></div>
+        <div class="cell-temp">12°</div>
+        <div class="cell-rain high">70%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">14°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+
+      <!-- 12:00 AM -->
+      <div class="time-cell">12:00 AM</div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">13°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">12°</div>
+        <div class="cell-rain">15%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">12°</div>
+        <div class="cell-rain">30%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">13°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">12°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">11°</div>
+        <div class="cell-rain">35%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/mostly-clear-night.svg" alt="Clear Night"></div>
+        <div class="cell-temp">13°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+
+      <!-- 6:00 AM -->
+      <div class="time-cell">6:00 AM</div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">12°</div>
+        <div class="cell-rain">0%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">11°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">11°</div>
+        <div class="cell-rain">25%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">12°</div>
+        <div class="cell-rain">0%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">11°</div>
+        <div class="cell-rain">15%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/rain.svg" alt="Rain"></div>
+        <div class="cell-temp">10°</div>
+        <div class="cell-rain high">40%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">12°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+
+      <!-- 9:00 AM -->
+      <div class="time-cell">9:00 AM</div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">14°</div>
+        <div class="cell-rain">0%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">13°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/rain.svg" alt="Rain"></div>
+        <div class="cell-temp">12°</div>
+        <div class="cell-rain high">50%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">15°</div>
+        <div class="cell-rain">0%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">14°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">13°</div>
+        <div class="cell-rain">30%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">15°</div>
+        <div class="cell-rain">0%</div>
+      </div>
+
+      <!-- 12:00 PM -->
+      <div class="time-cell">12:00 PM</div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">16°</div>
+        <div class="cell-rain">0%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">15°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">14°</div>
+        <div class="cell-rain">15%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">17°</div>
+        <div class="cell-rain">0%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+        <div class="cell-temp">16°</div>
+        <div class="cell-rain">10%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/cloudy.svg" alt="Cloudy"></div>
+        <div class="cell-temp">15°</div>
+        <div class="cell-rain">25%</div>
+      </div>
+      <div class="forecast-cell">
+        <div class="cell-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/sunny.svg" alt="Sunny"></div>
+        <div class="cell-temp">17°</div>
+        <div class="cell-rain">5%</div>
+      </div>
+    </div>
+  </div>
+</body>
+      </div>
+    </div>
+  </div>
+
+<script>
+const proxy = "https://corsproxy.io/?url=";
+
+const endpoints = [
+  ["Daily Forecast", "https://api.bom.gov.au/apikey/v1/forecasts/daily/593/42?timezone=Australia%2FHobart"],
+  ["1-Hourly Forecast", "https://api.bom.gov.au/apikey/v1/forecasts/1hourly/593/42?timezone=Australia%2FHobart"],
+  ["Latest Observation", "https://api.bom.gov.au/apikey/v1/observations/latest/94029/atm/surf_air?include_qc_results=false"],
+  ["Astro", "https://api.bom.gov.au/apikey/v1/forecasts/astro/147.327/-42.889"]
+];
+
+// BOM icon mapping
+// Icon code 3 verified 2026-01-24 as mostly-sunny/mostly-clear-night
+// Icon code 4 verified 2026-01-24 as cloudy
+// Icon code 11 verified 2026-01-24 as showers
+// Unverified codes return null to avoid displaying incorrect icons
+const iconMap = {
+  1: null,
+  2: null,
+  3: 'mostly-sunny',  // verified
+  4: 'cloudy',  // verified
+  6: null,
+  8: null,
+  9: null,
+  10: null,
+  11: 'showers',  // verified
+  12: null,
+  13: null,
+  14: null,
+  15: null,
+  16: null,
+  17: null,
+  18: null
+};
+
+function getBomIconUrl(iconCode, isNight = false) {
+  const baseUrl = 'https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/';
+  let iconName = iconMap[iconCode];
+  
+  // Return null if icon code not verified
+  if (!iconName) return null;
+  
+  // Use night variants for night time
+  // Note: Icon code 3 mapping verified 2026-01-24 - should be mostly-clear-night
+  if (isNight) {
+    if (iconCode === 1) iconName = 'clear-night';           // sunny → clear-night
+    else if (iconCode === 2) iconName = 'mostly-clear-night';  // mostly-sunny → mostly-clear-night
+    else if (iconCode === 3) iconName = 'mostly-clear-night';  // mostly-sunny → mostly-clear-night (verified)
+    // cloudy (4) stays the same day or night
+  }
+  
+  return `${baseUrl}${iconName}.svg`;
+}
+
+function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
+  const temp = data.temp?.dry_bulb_1min_cel;
+  const feelsLike = data.temp?.apparent_1min_cel;
+  const humidity = data.temp?.rel_hum_percent;
+  const dewPoint = data.temp?.dew_pnt_1min_cel;
+  const windSpeed = data.wind?.speed_10m_mps ? (data.wind.speed_10m_mps * 1.94384).toFixed(1) : '--';
+  const windDir = data.wind?.dirn_10m_ord || '';
+  
+  // Get temps from daily data
+  const todayMax = dailyData?.[0]?.atm?.surf_air?.temp_max_cel;
+  const overnightMin = dailyData?.[1]?.atm?.surf_air?.temp_min_cel;  // Tomorrow's min = tonight's overnight min
+  const tomorrowMax = dailyData?.[1]?.atm?.surf_air?.temp_max_cel;
+  
+  // Determine if it's currently night time
+  let isNight = false;
+  if (astroData && astroData.length > 0) {
+    const now = new Date();
+    const todayAstro = astroData[0];
+    if (todayAstro.astro?.sunrise_utc && todayAstro.astro?.sunset_utc) {
+      const sunrise = new Date(todayAstro.astro.sunrise_utc);
+      const sunset = new Date(todayAstro.astro.sunset_utc);
+      isNight = now < sunrise || now > sunset;
+    }
+  }
+  
+  // Debug logging
+  console.log("TODAY'S ICON CODE:", todayIconCode);
+  console.log("MAPPED TO:", iconMap[todayIconCode]);
+  console.log("IS NIGHT:", isNight);
+  console.log("FINAL ICON URL:", getBomIconUrl(todayIconCode || 4, isNight));
+  console.log("OVERNIGHT MIN:", overnightMin);
+  console.log("TOMORROW MAX:", tomorrowMax);
+  console.log("DAILY DATA:", dailyData);
+  
+  // Update sidebar icon
+  const iconUrl = getBomIconUrl(todayIconCode || 4, isNight);
+  if (iconUrl) {
+    document.querySelector('.current-icon img').src = iconUrl;
+  }
+  
+  document.getElementById('sidebar-temp').textContent = `${temp?.toFixed(1) || '--'}°`;
+  document.getElementById('sidebar-condition').textContent = 'Current Conditions';
+  
+  document.getElementById('sidebar-details').innerHTML = `
+    <div class="detail-row">
+      <span class="detail-label">Feels Like</span>
+      <span class="detail-value">${feelsLike?.toFixed(1) || '--'}°</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Wind</span>
+      <span class="detail-value">${windSpeed} kt ${windDir}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Humidity</span>
+      <span class="detail-value">${humidity?.toFixed(0) || '--'}%</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Dew Point</span>
+      <span class="detail-value">${dewPoint?.toFixed(1) || '--'}°</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Today's max</span>
+      <span class="detail-value">${todayMax?.toFixed(0) || '--'}°</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Overnight min</span>
+      <span class="detail-value">${overnightMin?.toFixed(0) || '--'}°</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Tomorrow's max</span>
+      <span class="detail-value">${tomorrowMax?.toFixed(0) || '--'}°</span>
+    </div>
+  `;
+}
+
+function renderHourlyGrid(hourlyData, dailyData, astroData) {
+  // Collect hourly data from all 7 days
+  let allHourly = [];
+  
+  for (let dayIdx = 0; dayIdx < Math.min(hourlyData.length, 7); dayIdx++) {
+    const hourlyArray = hourlyData[dayIdx]['1hourly'] || [];
+    hourlyArray.forEach(hour => {
+      allHourly.push({
+        ...hour,
+        date: new Date(hour.time_utc),
+        dayIdx: dayIdx
+      });
+    });
+  }
+  
+  // Filter to show from current hour onwards
+  const now = new Date();
+  allHourly = allHourly.filter(h => h.date >= now);
+  
+  // Get rain probability and icon code from daily data
+  const dayData = dailyData.slice(0, 7).map((day, idx) => {
+    return {
+      rainProb: day.atm?.surf_air?.precip?.exceeding_50percentchance_total_mm || 0,
+      iconCode: day.atm?.surf_air?.weather?.icon_code || 4,
+      date: new Date(day.date_utc)
+    };
+  });
+  
+  // Build sunrise/sunset map by date
+  const astroMap = {};
+  if (astroData) {
+    astroData.forEach(day => {
+      const dateKey = new Date(day.date_utc).toISOString().split('T')[0];
+      astroMap[dateKey] = {
+        sunrise: new Date(day.astro.sunrise_utc),
+        sunset: new Date(day.astro.sunset_utc)
+      };
+    });
+  }
+  
+  // Group by day
+  const dayGroups = [];
+  for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+    const dayHours = allHourly.filter(h => h.dayIdx === dayIdx);
+    if (dayHours.length === 0) continue;
+    
+    const dayName = dayHours[0].date.toLocaleDateString('en-AU', {
+      weekday: 'long',
+      timeZone: 'Australia/Hobart'
+    });
+    
+    dayGroups.push({
+      dayName: dayIdx === 0 ? 'Today' : dayIdx === 1 ? 'Tomorrow' : dayName,
+      dayIdx: dayIdx,
+      hours: dayHours
+    });
+  }
+  
+  // Get all unique hours across all days for row labels
+  const allHours = new Set();
+  dayGroups.forEach(group => {
+    group.hours.forEach(h => {
+      // Get LOCAL hour from the date
+      const localHour = new Date(h.date.toLocaleString('en-US', { timeZone: 'Australia/Hobart' })).getHours();
+      allHours.add(localHour);
+    });
+  });
+  const sortedHours = Array.from(allHours).sort((a, b) => a - b);
+  
+  // Build grid HTML
+  let html = '';
+  
+  // Header row
+  html += '<div class="grid-header time-header"></div>';
+  dayGroups.forEach(group => {
+    html += `<div class="grid-header">${group.dayName}</div>`;
+  });
+  
+  // Hour rows - show all available hours
+  const nowLocal = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Hobart' }));
+  const currentHour = nowLocal.getHours();
+  let isFirstDataRow = true;
+  
+  sortedHours.forEach(hourNum => {
+    const hour12 = hourNum === 0 ? 12 : hourNum > 12 ? hourNum - 12 : hourNum;
+    const ampm = hourNum < 12 ? 'AM' : 'PM';
+    const timeLabel = `${hour12} ${ampm}`;
+    
+    let rowClass = '';
+    let hasDataInToday = false;
+    
+    // Check if Today column will have data for this hour
+    const todayGroup = dayGroups.find(g => g.dayIdx === 0);
+    if (todayGroup && hourNum >= nowLocal.getHours()) {
+      const todayHourData = todayGroup.hours.find(h => {
+        const localHour = new Date(h.date.toLocaleString('en-US', { timeZone: 'Australia/Hobart' })).getHours();
+        return localHour === hourNum;
+      });
+      if (todayHourData) {
+        hasDataInToday = true;
+      }
+    }
+    
+    if (hasDataInToday && isFirstDataRow) {
+      rowClass += 'current-hour';
+    }
+    
+    html += `<div class="time-cell ${rowClass}">${timeLabel}</div>`;
+    
+    let hasData = false;
+    
+    dayGroups.forEach(group => {
+      // For today, skip past times (compare local hours)
+      if (group.dayIdx === 0 && hourNum < nowLocal.getHours()) {
+        html += '<div class="forecast-cell" style="background: #fafafa;"></div>';
+        return;
+      }
+      
+      // Find hour data by matching local hour
+      const hourData = group.hours.find(h => {
+        const localHour = new Date(h.date.toLocaleString('en-US', { timeZone: 'Australia/Hobart' })).getHours();
+        return localHour === hourNum;
+      });
+      
+      if (hourData) {
+        hasData = true;
+        const temp = hourData.atm?.surf_air?.temp_cel;
+        // Get icon code from daily data for this day
+        const iconCode = dayData[group.dayIdx]?.iconCode || 4;
+        
+        // Get rain probability
+        const rainProb = dayData[group.dayIdx]?.rainProb || 0;
+        const rainClass = rainProb >= 0.5 ? 'high' : '';
+        
+        // Check if hour is during night time
+        const dateKey = hourData.date.toISOString().split('T')[0];
+        const astro = astroMap[dateKey];
+        let isNight = false;
+        if (astro) {
+          isNight = hourData.date < astro.sunrise || hourData.date > astro.sunset;
+        }
+        const nightClass = isNight ? 'night' : '';
+        
+        let cellClass = (hasDataInToday && isFirstDataRow) ? 'current-hour' : '';
+        cellClass += nightClass ? ` ${nightClass}` : '';
+        
+        const iconUrl = getBomIconUrl(iconCode, isNight);
+        const iconHtml = iconUrl ? `<div class="cell-icon"><img src="${iconUrl}" alt="Weather"></div>` : '';
+        
+        html += `
+          <div class="forecast-cell ${cellClass}">
+            ${iconHtml}
+            <div class="cell-temp">${temp?.toFixed(0) || '--'}°</div>
+            <div class="cell-rain ${rainClass}">${rainProb > 0 ? `💧 ${rainProb.toFixed(1)}mm` : ''}</div>
+          </div>
+        `;
+      } else {
+        html += '<div class="forecast-cell" style="background: #fafafa;"></div>';
+      }
+    });
+    
+    // Mark first data row as done after rendering if Today column has data
+    if (hasDataInToday && isFirstDataRow) {
+      isFirstDataRow = false;
+    }
+  });
+  
+  document.getElementById('forecast-grid').innerHTML = html;
+  
+  // Scroll to current hour if it exists
+  const currentHourElement = document.querySelector('.time-cell.current-hour');
+  if (currentHourElement) {
+    setTimeout(() => {
+      currentHourElement.scrollIntoView({ behavior: 'auto', block: 'center' });
+    }, 100);
+  }
+}
+
+async function loadData() {
+  try {
+    let hourlyData = null;
+    let dailyData = null;
+    let obsData = null;
+    let astroData = null;
+    
+    for (const [title, url] of endpoints) {
+      const r = await fetch(proxy + encodeURIComponent(url));
+      const j = await r.json();
+      const data = j.data ?? j;
+      
+      if (title === "1-Hourly Forecast") {
+        hourlyData = data.fcst;
+      } else if (title === "Daily Forecast") {
+        dailyData = data.fcst?.daily;
+      } else if (title === "Latest Observation") {
+        obsData = data.obs;
+      } else if (title === "Astro") {
+        astroData = data.fcst?.daily;
+      }
+    }
+    
+    // Render sidebar with today's icon code
+    if (obsData && dailyData && astroData) {
+      const todayIconCode = dailyData[0]?.atm?.surf_air?.weather?.icon_code;
+      renderCurrentObs(obsData, todayIconCode, astroData, dailyData);
+    }
+    
+    if (hourlyData && dailyData) {
+      renderHourlyGrid(hourlyData, dailyData, astroData);
+    }
+    
+  } catch (e) {
+    console.error('Error loading data:', e);
+    document.getElementById('forecast-grid').innerHTML = '<p style="color: red; padding: 20px;">Error loading forecast data</p>';
+  }
+}
+
+// Load data on page load
+loadData();
+</script>
+
+</body>
+</html>
