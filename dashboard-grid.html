@@ -248,6 +248,22 @@
         <span class="detail-label">Tomorrow's max</span>
         <span class="detail-value">--°</span>
       </div>
+      <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+        <span class="detail-label">Sunrise</span>
+        <span class="detail-value">--</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Sunset</span>
+        <span class="detail-value">--</span>
+      </div>
+      <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+        <span class="detail-label">Next high tide</span>
+        <span class="detail-value" id="next-high-tide">--</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Next low tide</span>
+        <span class="detail-value" id="next-low-tide">--</span>
+      </div>
     </div>
   </div>
 
@@ -603,8 +619,10 @@ function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
   const tomorrowMax = dailyData?.[1]?.atm?.surf_air?.temp_max_cel;
   const todayRainfall = dailyData?.[0]?.atm?.surf_air?.precip?.total_mm;
   
-  // Determine if it's currently night time
+  // Determine if it's currently night time and get sunrise/sunset times
   let isNight = false;
+  let sunriseTime = '';
+  let sunsetTime = '';
   if (astroData && astroData.length > 0) {
     const now = new Date();
     const todayAstro = astroData[0];
@@ -612,17 +630,10 @@ function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
       const sunrise = new Date(todayAstro.astro.sunrise_utc);
       const sunset = new Date(todayAstro.astro.sunset_utc);
       isNight = now < sunrise || now > sunset;
+      sunriseTime = sunrise.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      sunsetTime = sunset.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     }
   }
-  
-  // Debug logging
-  console.log("TODAY'S ICON CODE:", todayIconCode);
-  console.log("MAPPED TO:", iconMap[todayIconCode]);
-  console.log("IS NIGHT:", isNight);
-  console.log("FINAL ICON URL:", getBomIconUrl(todayIconCode || 4, isNight));
-  console.log("OVERNIGHT MIN:", overnightMin);
-  console.log("TOMORROW MAX:", tomorrowMax);
-  console.log("DAILY DATA:", dailyData);
   
   // Update sidebar icon
   const iconUrl = getBomIconUrl(todayIconCode || 4, isNight);
@@ -666,7 +677,53 @@ function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
       <span class="detail-label">Tomorrow's max</span>
       <span class="detail-value">${tomorrowMax?.toFixed(0) || '--'}°</span>
     </div>
+    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+      <span class="detail-label">Sunrise</span>
+      <span class="detail-value">${sunriseTime || '--'}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Sunset</span>
+      <span class="detail-value">${sunsetTime || '--'}</span>
+    </div>
+    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+      <span class="detail-label">Next high tide</span>
+      <span class="detail-value" id="next-high-tide">--</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Next low tide</span>
+      <span class="detail-value" id="next-low-tide">--</span>
+    </div>
   `;
+}
+
+      function renderTideInfo(tideData) {
+        const now = new Date();
+        const dailyForecasts = tideData?.daily || [];
+        
+        let nextHigh = null;
+        let nextLow = null;
+        
+        // Collect all tides from all days
+        for (const day of dailyForecasts) {
+          const tides = day.tide || [];
+          for (const tide of tides) {
+            const tideTime = new Date(tide.datetime_utc);
+            if (tideTime > now) {
+              if (tide.type === 'high' && !nextHigh) {
+                nextHigh = tideTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+              } else if (tide.type === 'low' && !nextLow) {
+                nextLow = tideTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+              }
+              if (nextHigh && nextLow) break;
+            }
+          }
+          if (nextHigh && nextLow) break;
+        }  if (nextHigh) {
+    document.getElementById('next-high-tide').textContent = nextHigh;
+  }
+  if (nextLow) {
+    document.getElementById('next-low-tide').textContent = nextLow;
+  }
 }
 
 function renderHourlyGrid(hourlyData, dailyData, astroData) {
@@ -710,7 +767,6 @@ function renderHourlyGrid(hourlyData, dailyData, astroData) {
         sunrise: sunrise,
         sunset: sunset
       };
-      console.log(`ASTRO ${dateKey}: Sunrise ${sunrise.toLocaleString()}, Sunset ${sunset.toLocaleString()}`);
     });
   }
   
@@ -822,9 +878,6 @@ function renderHourlyGrid(hourlyData, dailyData, astroData) {
         let isNight = false;
         if (astro) {
           isNight = hourData.date < astro.sunrise || hourData.date > astro.sunset;
-          console.log(`Hour ${hourNum}: date=${hourData.date.toLocaleString()}, sunrise=${astro.sunrise.toLocaleString()}, sunset=${astro.sunset.toLocaleString()}, isNight=${isNight}`);
-        } else {
-          console.log(`Hour ${hourNum}: NO ASTRO DATA for dateKey=${dateKey}`);
         }
         const nightClass = isNight ? 'night' : '';
         
@@ -873,6 +926,7 @@ async function loadData() {
     let dailyData = null;
     let obsData = null;
     let astroData = null;
+    let tideData = null;
     
     for (const [title, url] of endpoints) {
       const r = await fetch(proxy + encodeURIComponent(url));
@@ -890,10 +944,22 @@ async function loadData() {
       }
     }
     
-    // Render sidebar with today's icon code
+        // Fetch tide data
+        try {
+          const tideUrl = 'https://api.bom.gov.au/apikey/v1/forecasts/tidal/TAS_TP003';
+          const tideResponse = await fetch(proxy + encodeURIComponent(tideUrl));
+          const tideJson = await tideResponse.json();
+          tideData = tideJson.fcst || tideJson.data?.fcst || tideJson;
+        } catch (e) {
+          console.error('Error fetching tide data:', e);
+        }    // Render sidebar with today's icon code
     if (obsData && dailyData && astroData) {
       const todayIconCode = dailyData[0]?.atm?.surf_air?.weather?.icon_code;
       renderCurrentObs(obsData, todayIconCode, astroData, dailyData);
+    }
+    
+    if (tideData) {
+      renderTideInfo(tideData);
     }
     
     if (hourlyData && dailyData) {
