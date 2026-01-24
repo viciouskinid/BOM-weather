@@ -221,6 +221,14 @@
         <span class="detail-value">--°</span>
       </div>
       <div class="detail-row">
+        <span class="detail-label">Today's max</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Today's rainfall</span>
+        <span class="detail-value">0mm</span>
+      </div>
+      <div class="detail-row">
         <span class="detail-label">Wind</span>
         <span class="detail-value">-- kt</span>
       </div>
@@ -232,11 +240,7 @@
         <span class="detail-label">Dew Point</span>
         <span class="detail-value">--°</span>
       </div>
-      <div class="detail-row">
-        <span class="detail-label">Today's max</span>
-        <span class="detail-value">--°</span>
-      </div>
-      <div class="detail-row">
+      <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
         <span class="detail-label">Overnight min</span>
         <span class="detail-value">--°</span>
       </div>
@@ -542,12 +546,13 @@ const endpoints = [
 ];
 
 // BOM icon mapping
+// Icon code 1 verified 2026-01-25 as sunny/clear-night
 // Icon code 3 verified 2026-01-24 as mostly-sunny/mostly-clear-night
 // Icon code 4 verified 2026-01-24 as cloudy
 // Icon code 11 verified 2026-01-24 as showers
 // Unverified codes return null to avoid displaying incorrect icons
 const iconMap = {
-  1: null,
+  1: 'sunny',  // verified
   2: null,
   3: 'mostly-sunny',  // verified
   4: 'cloudy',  // verified
@@ -596,6 +601,7 @@ function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
   const todayMax = dailyData?.[0]?.atm?.surf_air?.temp_max_cel;
   const overnightMin = dailyData?.[1]?.atm?.surf_air?.temp_min_cel;  // Tomorrow's min = tonight's overnight min
   const tomorrowMax = dailyData?.[1]?.atm?.surf_air?.temp_max_cel;
+  const todayRainfall = dailyData?.[0]?.atm?.surf_air?.precip?.total_mm;
   
   // Determine if it's currently night time
   let isNight = false;
@@ -633,6 +639,14 @@ function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
       <span class="detail-value">${feelsLike?.toFixed(1) || '--'}°</span>
     </div>
     <div class="detail-row">
+      <span class="detail-label">Today's max</span>
+      <span class="detail-value">${todayMax?.toFixed(0) || '--'}°</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Today's rainfall</span>
+      <span class="detail-value">${todayRainfall > 0 ? todayRainfall.toFixed(1) + 'mm' : '0mm'}</span>
+    </div>
+    <div class="detail-row">
       <span class="detail-label">Wind</span>
       <span class="detail-value">${windSpeed} kt ${windDir}</span>
     </div>
@@ -644,11 +658,7 @@ function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
       <span class="detail-label">Dew Point</span>
       <span class="detail-value">${dewPoint?.toFixed(1) || '--'}°</span>
     </div>
-    <div class="detail-row">
-      <span class="detail-label">Today's max</span>
-      <span class="detail-value">${todayMax?.toFixed(0) || '--'}°</span>
-    </div>
-    <div class="detail-row">
+    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
       <span class="detail-label">Overnight min</span>
       <span class="detail-value">${overnightMin?.toFixed(0) || '--'}°</span>
     </div>
@@ -678,24 +688,29 @@ function renderHourlyGrid(hourlyData, dailyData, astroData) {
   const now = new Date();
   allHourly = allHourly.filter(h => h.date >= now);
   
-  // Get rain probability and icon code from daily data
+  // Get rain probability, icon code, and max temp from daily data
   const dayData = dailyData.slice(0, 7).map((day, idx) => {
     return {
       rainProb: day.atm?.surf_air?.precip?.exceeding_50percentchance_total_mm || 0,
       iconCode: day.atm?.surf_air?.weather?.icon_code || 4,
+      maxTemp: day.atm?.surf_air?.temp_max_cel,
       date: new Date(day.date_utc)
     };
   });
   
-  // Build sunrise/sunset map by date
+  // Build sunrise/sunset map by date (use sunrise date in local time as key)
   const astroMap = {};
   if (astroData) {
     astroData.forEach(day => {
-      const dateKey = new Date(day.date_utc).toISOString().split('T')[0];
+      const sunrise = new Date(day.astro.sunrise_utc);
+      const sunset = new Date(day.astro.sunset_utc);
+      // Use the local date of the sunrise as the key
+      const dateKey = sunrise.toLocaleDateString('en-CA'); // YYYY-MM-DD format
       astroMap[dateKey] = {
-        sunrise: new Date(day.astro.sunrise_utc),
-        sunset: new Date(day.astro.sunset_utc)
+        sunrise: sunrise,
+        sunset: sunset
       };
+      console.log(`ASTRO ${dateKey}: Sunrise ${sunrise.toLocaleString()}, Sunset ${sunset.toLocaleString()}`);
     });
   }
   
@@ -731,10 +746,18 @@ function renderHourlyGrid(hourlyData, dailyData, astroData) {
   // Build grid HTML
   let html = '';
   
-  // Header row
+  // Header row with day names, icons, and max temps
   html += '<div class="grid-header time-header"></div>';
   dayGroups.forEach(group => {
-    html += `<div class="grid-header">${group.dayName}</div>`;
+    const dayMaxTemp = dayData[group.dayIdx]?.maxTemp;
+    const iconCode = dayData[group.dayIdx]?.iconCode || 4;
+    const iconUrl = getBomIconUrl(iconCode, false); // Always use day icon in header
+    
+    html += `<div class="grid-header">
+      <div>${group.dayName}</div>
+      ${iconUrl ? `<img src="${iconUrl}" alt="Weather" style="width: 40px; height: 40px; margin: 5px auto; display: block;">` : ''}
+      <div style="font-size: 1.2rem; font-weight: 600;">${dayMaxTemp !== undefined ? dayMaxTemp.toFixed(0) + '°' : '--'}</div>
+    </div>`;
   });
   
   // Hour rows - show all available hours
@@ -789,16 +812,19 @@ function renderHourlyGrid(hourlyData, dailyData, astroData) {
         // Get icon code from daily data for this day
         const iconCode = dayData[group.dayIdx]?.iconCode || 4;
         
-        // Get rain probability
-        const rainProb = dayData[group.dayIdx]?.rainProb || 0;
-        const rainClass = rainProb >= 0.5 ? 'high' : '';
+        // Get hourly rainfall amount
+        const rainfall = hourData.atm?.surf_air?.precip?.total_mm || 0;
+        const rainClass = rainfall >= 0.5 ? 'high' : '';
         
         // Check if hour is during night time
-        const dateKey = hourData.date.toISOString().split('T')[0];
+        const dateKey = hourData.date.toLocaleDateString('en-CA'); // YYYY-MM-DD format
         const astro = astroMap[dateKey];
         let isNight = false;
         if (astro) {
           isNight = hourData.date < astro.sunrise || hourData.date > astro.sunset;
+          console.log(`Hour ${hourNum}: date=${hourData.date.toLocaleString()}, sunrise=${astro.sunrise.toLocaleString()}, sunset=${astro.sunset.toLocaleString()}, isNight=${isNight}`);
+        } else {
+          console.log(`Hour ${hourNum}: NO ASTRO DATA for dateKey=${dateKey}`);
         }
         const nightClass = isNight ? 'night' : '';
         
@@ -812,7 +838,7 @@ function renderHourlyGrid(hourlyData, dailyData, astroData) {
           <div class="forecast-cell ${cellClass}">
             ${iconHtml}
             <div class="cell-temp">${temp?.toFixed(0) || '--'}°</div>
-            <div class="cell-rain ${rainClass}">${rainProb > 0 ? `💧 ${rainProb.toFixed(1)}mm` : ''}</div>
+            <div class="cell-rain ${rainClass}">${rainfall > 0 ? `💧 ${rainfall.toFixed(1)}mm` : ''}</div>
           </div>
         `;
       } else {
@@ -832,7 +858,11 @@ function renderHourlyGrid(hourlyData, dailyData, astroData) {
   const currentHourElement = document.querySelector('.time-cell.current-hour');
   if (currentHourElement) {
     setTimeout(() => {
-      currentHourElement.scrollIntoView({ behavior: 'auto', block: 'center' });
+      const mainContainer = document.querySelector('.main-container');
+      const rect = currentHourElement.getBoundingClientRect();
+      const containerRect = mainContainer.getBoundingClientRect();
+      const scrollTop = rect.top - containerRect.top + mainContainer.scrollTop - 120;
+      mainContainer.scrollTo({ top: scrollTop, behavior: 'auto' });
     }, 100);
   }
 }
