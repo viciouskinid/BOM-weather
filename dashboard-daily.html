@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Weather Summary</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: white;
+      color: #1f2937;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .sidebar {
+      width: 250px;
+      background-image: url("https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-moods/mostly-clear-night.webp"), linear-gradient(-180deg, rgb(0, 30, 60) 0%, rgb(0, 59, 113) 100%);
+      color: white;
+      padding: 30px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .location {
+      font-size: 44px;
+      font-family: "Inter", "Inter-fallback", sans-serif;
+      opacity: 0.9;
+      margin-bottom: 10px;
+    }
+
+    .current-icon {
+      width: 80px;
+      height: 80px;
+      margin: 20px auto;
+      display: block;
+    }
+
+    .current-icon img {
+      width: 100%;
+      height: 100%;
+    }
+
+    .current-temp {
+      font-size: 4rem;
+      font-weight: 300;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .condition {
+      font-size: 1.1rem;
+      text-align: center;
+      opacity: 0.9;
+      margin-top: 10px;
+    }
+
+    .current-details {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 0.95rem;
+    }
+
+    .detail-label {
+      opacity: 0.8;
+    }
+
+    .detail-value {
+      font-weight: 600;
+    }
+
+    .main-container {
+      margin-left: 250px;
+      flex: 1;
+      padding: 30px;
+      overflow-y: auto;
+      height: 100vh;
+    }
+
+    .chart-container {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      margin-bottom: 30px;
+    }
+
+    .chart-header {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .chart-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      height: 400px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 50px;
+      font-size: 1.2rem;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="location">Hobart</div>
+    <div class="current-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt="Partly Cloudy"></div>
+    <div class="current-temp" id="sidebar-temp">--°</div>
+    <div class="condition" id="sidebar-condition">Loading...</div>
+    
+    <div class="current-details" id="sidebar-details">
+      <div class="detail-row">
+        <span class="detail-label">Feels Like</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Today's max</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Today's rainfall</span>
+        <span class="detail-value">0mm</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Wind</span>
+        <span class="detail-value">-- kt</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Humidity</span>
+        <span class="detail-value">--%</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Dew Point</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+        <span class="detail-label">Overnight min</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Tomorrow's max</span>
+        <span class="detail-value">--°</span>
+      </div>
+      <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+        <span class="detail-label">Sunrise</span>
+        <span class="detail-value">--</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Sunset</span>
+        <span class="detail-value">--</span>
+      </div>
+      <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+        <span class="detail-label">Next high tide</span>
+        <span class="detail-value" id="next-high-tide">--</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Next low tide</span>
+        <span class="detail-value" id="next-low-tide">--</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">7-Day Weather Summary</div>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="temp-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+<script>
+const proxy = "https://corsproxy.io/?url=";
+
+const endpoints = [
+  ["Daily Forecast", "https://api.bom.gov.au/apikey/v1/forecasts/daily/593/42?timezone=Australia%2FHobart"],
+  ["1-Hourly Forecast", "https://api.bom.gov.au/apikey/v1/forecasts/1hourly/593/42?timezone=Australia%2FHobart"],
+  ["Latest Observation", "https://api.bom.gov.au/apikey/v1/observations/latest/94029/atm/surf_air?include_qc_results=false"],
+  ["Astro", "https://api.bom.gov.au/apikey/v1/forecasts/astro/147.327/-42.889"]
+];
+
+// Custom plugin to draw weather icons below day labels
+const dayIconPlugin = {
+  id: 'dayIcons',
+  afterDraw(chart, args, options) {
+    const { ctx, chartArea, scales } = chart;
+    const { bottom, left, right, top } = chartArea;
+    const xScale = scales.x;
+    
+    // Draw night time periods as light grey background bars
+    if (options.nightPeriods && options.nightPeriods.length > 0) {
+      ctx.save();
+      
+      options.nightPeriods.forEach((period) => {
+        const startX = xScale.getPixelForValue(period.start);
+        const endX = xScale.getPixelForValue(period.end);
+        
+        // Draw light grey background bar
+        ctx.fillStyle = 'rgba(156, 163, 175, 0.15)';
+        ctx.fillRect(startX, top, endX - startX, bottom - top);
+      });
+      
+      ctx.restore();
+    }
+    
+    // Draw night time periods as thick black line along bottom border
+    if (options.nightPeriods && options.nightPeriods.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'butt';
+      ctx.setLineDash([]); // Ensure solid line, no dashes
+      
+      // Store night period bounds for hover detection
+      chart._nightPeriods = [];
+      
+      options.nightPeriods.forEach((period) => {
+        const startX = xScale.getPixelForValue(period.start);
+        const endX = xScale.getPixelForValue(period.end);
+        
+        // Check if this period is being hovered
+        const isHovered = chart._hoveredNight === period;
+        
+        if (isHovered) {
+          ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
+          ctx.lineWidth = 6;
+        } else {
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+          ctx.lineWidth = 5;
+        }
+        
+        ctx.beginPath();
+        ctx.moveTo(startX, bottom);
+        ctx.lineTo(endX, bottom);
+        ctx.stroke();
+        
+        // Store bounds
+        chart._nightPeriods.push({
+          startX: startX,
+          endX: endX,
+          y: bottom,
+          data: period
+        });
+      });
+      
+      ctx.restore();
+    }
+    
+    if (!options.icons || options.icons.length === 0) return;
+    
+    const iconSize = 32;
+    const iconY = bottom + 40; // Position below x-axis labels
+    
+    options.icons.forEach((iconData) => {
+      if (!iconData.image || !iconData.image.complete) return;
+      
+      const xPos = xScale.getPixelForValue(iconData.labelIndex);
+      
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(
+        iconData.image,
+        xPos - iconSize / 2,
+        iconY,
+        iconSize,
+        iconSize
+      );
+      
+      // Draw max temperature below icon
+      if (iconData.maxTemp !== undefined && iconData.maxTemp !== -Infinity) {
+        ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)'; // Black color
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`${Math.round(iconData.maxTemp)}°`, xPos, iconY + iconSize + 4);
+      }
+      
+      ctx.restore();
+    });
+    
+    // Draw tide arrows
+    if (options.tides && options.tides.length > 0) {
+      const arrowY = bottom - 18; // Position tide arrows higher to avoid night period line
+      const arrowSize = 12;
+      
+      // Store arrow bounds for hover detection
+      chart._tideArrows = [];
+      
+      options.tides.forEach((tideData) => {
+        const xPos = xScale.getPixelForValue(tideData.index);
+        
+        // Check if mouse is hovering over this arrow
+        const isHovered = chart._hoveredTide === tideData;
+        
+        ctx.save();
+        ctx.fillStyle = isHovered ? 'rgba(59, 130, 246, 1)' : 'rgba(59, 130, 246, 0.8)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+        ctx.lineWidth = 1.5;
+        
+        ctx.beginPath();
+        if (tideData.type === 'high') {
+          // Draw up arrow (triangle pointing up)
+          ctx.moveTo(xPos, arrowY - arrowSize / 2);
+          ctx.lineTo(xPos - arrowSize / 2, arrowY + arrowSize / 2);
+          ctx.lineTo(xPos + arrowSize / 2, arrowY + arrowSize / 2);
+        } else {
+          // Draw down arrow (triangle pointing down)
+          ctx.moveTo(xPos, arrowY + arrowSize / 2);
+          ctx.lineTo(xPos - arrowSize / 2, arrowY - arrowSize / 2);
+          ctx.lineTo(xPos + arrowSize / 2, arrowY - arrowSize / 2);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.restore();
+        
+        // Store arrow bounds
+        chart._tideArrows.push({
+          x: xPos,
+          y: arrowY,
+          size: arrowSize,
+          data: tideData
+        });
+        
+        // Draw tooltip if hovered
+        if (isHovered) {
+          const time = new Date(tideData.time).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Australia/Hobart'
+          });
+          const text = `${tideData.type === 'high' ? 'High' : 'Low'} Tide - ${time}`;
+          
+          ctx.save();
+          ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          const textWidth = ctx.measureText(text).width;
+          const padding = 8;
+          const tooltipX = xPos - textWidth / 2 - padding;
+          const tooltipY = arrowY - arrowSize - 30;
+          const tooltipWidth = textWidth + padding * 2;
+          const tooltipHeight = 24;
+          
+          // Draw tooltip background
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4);
+          ctx.fill();
+          
+          // Draw tooltip text
+          ctx.fillStyle = 'white';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, xPos, tooltipY + tooltipHeight / 2);
+          
+          ctx.restore();
+        }
+      });
+    }
+    
+    // Draw night period tooltips on top (after everything else)
+    if (options.nightPeriods && options.nightPeriods.length > 0) {
+      options.nightPeriods.forEach((period) => {
+        const isHovered = chart._hoveredNight === period;
+        
+        if (isHovered && period.sunset && period.sunrise) {
+          const startX = xScale.getPixelForValue(period.start);
+          const endX = xScale.getPixelForValue(period.end);
+          
+          const sunsetTime = period.sunset.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Australia/Hobart'
+          });
+          const sunriseTime = period.sunrise.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'Australia/Hobart'
+          });
+          const text = `Night: ${sunsetTime} - ${sunriseTime}`;
+          const centerX = (startX + endX) / 2;
+          
+          ctx.save();
+          ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          const textWidth = ctx.measureText(text).width;
+          const padding = 8;
+          const tooltipX = centerX - textWidth / 2 - padding;
+          const tooltipY = bottom - 45; // Position above tide arrows
+          const tooltipWidth = textWidth + padding * 2;
+          const tooltipHeight = 24;
+          
+          // Draw tooltip background
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          ctx.beginPath();
+          ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4);
+          ctx.fill();
+          
+          // Draw tooltip text
+          ctx.fillStyle = 'white';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, centerX, tooltipY + tooltipHeight / 2);
+          
+          ctx.restore();
+        }
+      });
+    }
+  },
+  afterEvent(chart, args) {
+    const event = args.event;
+    if (event.type === 'mousemove' || event.type === 'mouseout') {
+      const tideArrows = chart._tideArrows || [];
+      const nightPeriods = chart._nightPeriods || [];
+      let needsRedraw = false;
+      let hoveredTide = null;
+      let hoveredNight = null;
+      
+      if (event.type === 'mousemove') {
+        const mouseX = event.x;
+        const mouseY = event.y;
+        
+        // Check if mouse is over any tide arrow
+        for (const arrow of tideArrows) {
+          const dx = mouseX - arrow.x;
+          const dy = mouseY - arrow.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < arrow.size) {
+            hoveredTide = arrow.data;
+            break;
+          }
+        }
+        
+        // Check if mouse is over any night period
+        for (const period of nightPeriods) {
+          if (mouseX >= period.startX && mouseX <= period.endX &&
+              Math.abs(mouseY - period.y) < 10) {
+            hoveredNight = period.data;
+            break;
+          }
+        }
+      }
+      
+      if (chart._hoveredTide !== hoveredTide || chart._hoveredNight !== hoveredNight) {
+        chart._hoveredTide = hoveredTide;
+        chart._hoveredNight = hoveredNight;
+        needsRedraw = true;
+      }
+      
+      if (needsRedraw) {
+        chart.draw();
+      }
+      
+      // Change cursor style
+      chart.canvas.style.cursor = (hoveredTide || hoveredNight) ? 'pointer' : 'default';
+    }
+  }
+};
+
+// Register the plugin
+Chart.register(dayIconPlugin);
+
+const iconMap = {
+  1: 'sunny',
+  2: null,
+  3: 'mostly-sunny',
+  4: 'cloudy',
+  6: null,
+  8: null,
+  9: null,
+  10: null,
+  11: 'showers',
+  12: null,
+  13: null,
+  14: null,
+  15: null,
+  16: null,
+  17: null,
+  18: null
+};
+
+function getBomIconUrl(iconCode, isNight = false) {
+  const baseUrl = 'https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/';
+  let iconName = iconMap[iconCode];
+  
+  if (!iconName) return null;
+  
+  if (isNight) {
+    if (iconCode === 1) iconName = 'clear-night';
+    else if (iconCode === 2) iconName = 'mostly-clear-night';
+    else if (iconCode === 3) iconName = 'mostly-clear-night';
+  }
+  
+  return `${baseUrl}${iconName}.svg`;
+}
+
+function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
+  const temp = data.temp?.dry_bulb_1min_cel;
+  const feelsLike = data.temp?.apparent_1min_cel;
+  const humidity = data.temp?.rel_hum_percent;
+  const dewPoint = data.temp?.dew_pnt_1min_cel;
+  const windSpeed = data.wind?.speed_10m_mps ? (data.wind.speed_10m_mps * 1.94384).toFixed(1) : '--';
+  const windDir = data.wind?.dirn_10m_ord || '';
+  
+  const todayMax = dailyData?.[0]?.atm?.surf_air?.temp_max_cel;
+  const overnightMin = dailyData?.[1]?.atm?.surf_air?.temp_min_cel;
+  const tomorrowMax = dailyData?.[1]?.atm?.surf_air?.temp_max_cel;
+  const todayRainfall = dailyData?.[0]?.atm?.surf_air?.precip?.total_mm;
+  
+  let isNight = false;
+  let sunriseTime = '';
+  let sunsetTime = '';
+  if (astroData && astroData.length > 0) {
+    const now = new Date();
+    const todayAstro = astroData[0];
+    if (todayAstro.astro?.sunrise_utc && todayAstro.astro?.sunset_utc) {
+      const sunrise = new Date(todayAstro.astro.sunrise_utc);
+      const sunset = new Date(todayAstro.astro.sunset_utc);
+      isNight = now < sunrise || now > sunset;
+      sunriseTime = sunrise.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      sunsetTime = sunset.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+  }
+  
+  const iconUrl = getBomIconUrl(todayIconCode || 4, isNight);
+  if (iconUrl) {
+    document.querySelector('.current-icon img').src = iconUrl;
+  }
+  
+  document.getElementById('sidebar-temp').textContent = `${temp?.toFixed(1) || '--'}°`;
+  document.getElementById('sidebar-condition').textContent = 'Current Conditions';
+  
+  document.getElementById('sidebar-details').innerHTML = `
+    <div class="detail-row">
+      <span class="detail-label">Feels Like</span>
+      <span class="detail-value">${feelsLike?.toFixed(1) || '--'}°</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Today's max</span>
+      <span class="detail-value">${todayMax?.toFixed(0) || '--'}°</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Today's rainfall</span>
+      <span class="detail-value">${todayRainfall > 0 ? todayRainfall.toFixed(1) + 'mm' : '0mm'}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Wind</span>
+      <span class="detail-value">${windSpeed} kt ${windDir}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Humidity</span>
+      <span class="detail-value">${humidity?.toFixed(0) || '--'}%</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Dew Point</span>
+      <span class="detail-value">${dewPoint?.toFixed(1) || '--'}°</span>
+    </div>
+    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+      <span class="detail-label">Overnight min</span>
+      <span class="detail-value">${overnightMin?.toFixed(0) || '--'}°</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Tomorrow's max</span>
+      <span class="detail-value">${tomorrowMax?.toFixed(0) || '--'}°</span>
+    </div>
+    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+      <span class="detail-label">Sunrise</span>
+      <span class="detail-value">${sunriseTime || '--'}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Sunset</span>
+      <span class="detail-value">${sunsetTime || '--'}</span>
+    </div>
+    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
+      <span class="detail-label">Next high tide</span>
+      <span class="detail-value" id="next-high-tide">--</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Next low tide</span>
+      <span class="detail-value" id="next-low-tide">--</span>
+    </div>
+  `;
+}
+
+function renderTideInfo(tideData) {
+  const now = new Date();
+  const dailyForecasts = tideData?.daily || [];
+  
+  let nextHigh = null;
+  let nextLow = null;
+  
+  for (const day of dailyForecasts) {
+    const tides = day.tide || [];
+    for (const tide of tides) {
+      const tideTime = new Date(tide.datetime_utc);
+      if (tideTime > now) {
+        if (tide.type === 'high' && !nextHigh) {
+          nextHigh = tideTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        } else if (tide.type === 'low' && !nextLow) {
+          nextLow = tideTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        }
+        if (nextHigh && nextLow) break;
+      }
+    }
+    if (nextHigh && nextLow) break;
+  }
+  
+  if (nextHigh) {
+    document.getElementById('next-high-tide').textContent = nextHigh;
+  }
+  if (nextLow) {
+    document.getElementById('next-low-tide').textContent = nextLow;
+  }
+}
+
+function renderDailyCharts(dailyData, hourlyData) {
+  if (!hourlyData) return;
+  
+  const days = dailyData.slice(0, 7);
+  
+  // Collect all hourly data points
+  const labels = [];
+  const temps = [];
+  const feelsLike = [];
+  const humidity = [];
+  const rainfall = [];
+  const dayBoundaries = []; // Track where each day starts
+  const minMaxPoints = []; // Track min/max temps with day index
+  const dayIcons = []; // Track icons for each day
+  const tideMarkers = []; // Track tide times and types
+  const nightPeriods = []; // Track night time periods
+  
+  // First pass: collect all data
+  const allHourlyData = [];
+  for (let dayIdx = 0; dayIdx < Math.min(days.length, hourlyData.length); dayIdx++) {
+    const hourlyArray = hourlyData[dayIdx]['1hourly'] || [];
+    const date = new Date(days[dayIdx].date_utc);
+    const dayName = dayIdx === 0 ? 'Today' : dayIdx === 1 ? 'Tomorrow' : 
+                    date.toLocaleDateString('en-AU', { weekday: 'short', timeZone: 'Australia/Hobart' });
+    
+    // Mark day boundary
+    dayBoundaries.push({ index: labels.length, name: dayName });
+    
+    // Get icon for this day
+    const iconCode = days[dayIdx]?.atm?.surf_air?.weather?.icon_code || 4;
+    const iconUrl = getBomIconUrl(iconCode, false);
+    
+    hourlyArray.forEach((hour) => {
+      const hourDate = new Date(hour.time_utc);
+      const hourLabel = hourDate.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit', 
+        hour12: true,
+        timeZone: 'Australia/Hobart'
+      });
+      
+      labels.push(hourLabel);
+      
+      const temp = hour.atm?.surf_air?.temp_cel || null;
+      const feels = hour.atm?.surf_air?.temp_apparent_cel || null;
+      const hum = hour.atm?.surf_air?.hum_relative_percent || null;
+      const rain = hour.atm?.surf_air?.precip?.total_mm || 0;
+      
+      temps.push(temp);
+      feelsLike.push(feels);
+      humidity.push(hum);
+      rainfall.push(rain);
+      
+      allHourlyData.push({ temp, hourDate });
+    });
+    
+    // Store icon data for this day
+    if (iconUrl) {
+      dayIcons.push({
+        iconCode: iconCode,
+        url: iconUrl,
+        dayIdx: dayIdx
+      });
+    }
+  }
+  
+  // Build night periods from astro data
+  if (window.astroData) {
+    window.astroData.forEach((astroDay, dayIdx) => {
+      if (astroDay.astro?.sunrise_utc && astroDay.astro?.sunset_utc) {
+        const sunrise = new Date(astroDay.astro.sunrise_utc);
+        const sunset = new Date(astroDay.astro.sunset_utc);
+        
+        let periodStart = null;
+        let periodEnd = null;
+        
+        // Find the first hour after sunset
+        for (let idx = 0; idx < allHourlyData.length; idx++) {
+          const hourTime = allHourlyData[idx].hourDate;
+          
+          if (periodStart === null && hourTime >= sunset) {
+            periodStart = idx;
+          }
+          
+          // Find where this night period ends (at next sunrise)
+          if (periodStart !== null && hourTime >= sunrise && sunrise > sunset) {
+            periodEnd = idx - 1;
+            break;
+          }
+        }
+        
+        // If we started a night period (after sunset) but haven't found sunrise yet
+        // Look for sunrise in next day
+        if (periodStart !== null && periodEnd === null && dayIdx < window.astroData.length - 1) {
+          const nextDaySunrise = window.astroData[dayIdx + 1]?.astro?.sunrise_utc;
+          if (nextDaySunrise) {
+            const nextSunrise = new Date(nextDaySunrise);
+            for (let idx = periodStart; idx < allHourlyData.length; idx++) {
+              const hourTime = allHourlyData[idx].hourDate;
+              if (hourTime >= nextSunrise) {
+                periodEnd = idx - 1;
+                break;
+              }
+            }
+          }
+        }
+        
+        // If still no end, extend to end of data
+        if (periodStart !== null && periodEnd === null) {
+          periodEnd = allHourlyData.length - 1;
+        }
+        
+        if (periodStart !== null && periodEnd !== null && periodEnd >= periodStart) {
+          nightPeriods.push({
+            start: periodStart,
+            end: periodEnd,
+            sunset: sunset,
+            sunrise: sunrise
+          });
+        }
+      }
+    });
+  }
+  
+  // Second pass: find min/max for each midday-to-midday period
+  for (let i = 0; i < dayBoundaries.length; i++) {
+    const dayStart = dayBoundaries[i].index;
+    const dayEnd = i < dayBoundaries.length - 1 ? dayBoundaries[i + 1].index : labels.length;
+    const dayMidpoint = Math.floor((dayStart + dayEnd) / 2);
+    
+    // Find max in this day's data
+    let dayMaxTemp = -Infinity;
+    let maxIndex = -1;
+    for (let j = dayStart; j < dayEnd; j++) {
+      if (temps[j] !== null && temps[j] > dayMaxTemp) {
+        dayMaxTemp = temps[j];
+        maxIndex = j;
+      }
+    }
+    
+    // Find min from this midpoint to next midpoint
+    const nextMidpoint = i < dayBoundaries.length - 1 ? 
+                         Math.floor((dayBoundaries[i + 1].index + (i + 2 < dayBoundaries.length ? dayBoundaries[i + 2].index : labels.length)) / 2) :
+                         labels.length;
+    
+    let minTemp = Infinity;
+    let minIndex = -1;
+    for (let j = dayMidpoint; j < nextMidpoint && j < temps.length; j++) {
+      if (temps[j] !== null && temps[j] < minTemp) {
+        minTemp = temps[j];
+        minIndex = j;
+      }
+    }
+    
+    if (maxIndex >= 0) minMaxPoints.push({ index: maxIndex, type: 'max', value: dayMaxTemp });
+    if (minIndex >= 0) minMaxPoints.push({ index: minIndex, type: 'min', value: minTemp });
+    
+    // Store max temp with the corresponding day icon
+    if (i < dayIcons.length) {
+      // For today, use the daily forecast max temp instead of calculated from hourly
+      if (i === 0 && days[0]?.atm?.surf_air?.temp_max_cel) {
+        dayIcons[i].maxTemp = days[0].atm.surf_air.temp_max_cel;
+      } else {
+        dayIcons[i].maxTemp = dayMaxTemp;
+      }
+    }
+  }
+  
+  // Match tide times to hour indices
+  if (window.tideData && window.tideData.daily) {
+    window.tideData.daily.forEach((dayTides) => {
+      if (dayTides.tide) {
+        dayTides.tide.forEach((tide) => {
+          const tideTime = new Date(tide.datetime_utc);
+          
+          // Find the closest hour index
+          allHourlyData.forEach((hourData, idx) => {
+            const timeDiff = Math.abs(hourData.hourDate - tideTime);
+            // If within 30 minutes of this hour
+            if (timeDiff < 30 * 60 * 1000) {
+              tideMarkers.push({
+                index: idx,
+                type: tide.type,
+                time: tideTime
+              });
+            }
+          });
+        });
+      }
+    });
+  }
+  
+  // Preload icon images with proxy
+  const iconImages = [];
+  const imagePromises = [];
+  
+  dayIcons.forEach((iconData, idx) => {
+    if (idx < dayBoundaries.length) {
+      const dayStart = dayBoundaries[idx].index;
+      const dayEnd = idx < dayBoundaries.length - 1 ? dayBoundaries[idx + 1].index : labels.length;
+      const midpoint = Math.floor((dayStart + dayEnd) / 2);
+      
+      // Use proxy for the icon URL
+      const proxiedUrl = proxy + encodeURIComponent(iconData.url);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = proxiedUrl;
+      
+      imagePromises.push(
+        new Promise((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        })
+      );
+      
+      iconImages.push({
+        image: img,
+        labelIndex: midpoint,
+        maxTemp: iconData.maxTemp
+      });
+    }
+  });
+  
+  // Create custom x-axis labels (only show day names at midday/center of each day)
+  const xAxisLabels = labels.map((label, idx) => {
+    // Find which day this hour belongs to
+    let dayIdx = -1;
+    for (let i = 0; i < dayBoundaries.length; i++) {
+      if (idx >= dayBoundaries[i].index) {
+        dayIdx = i;
+      }
+    }
+    
+    if (dayIdx >= 0) {
+      const dayStart = dayBoundaries[dayIdx].index;
+      const dayEnd = dayIdx < dayBoundaries.length - 1 ? dayBoundaries[dayIdx + 1].index : labels.length;
+      const dayMidpoint = Math.floor((dayStart + dayEnd) / 2);
+      
+      if (idx === dayMidpoint) {
+        return dayBoundaries[dayIdx].name;
+      }
+    }
+    
+    return '';
+  });
+  
+  // Wait for all images to load before creating chart
+  Promise.all(imagePromises).then(() => {
+    // Temperature chart
+    const tempCtx = document.getElementById('temp-chart').getContext('2d');
+    new Chart(tempCtx, {
+    type: 'line',
+    data: {
+      labels: xAxisLabels,
+      datasets: [
+        {
+          label: 'Temperature (°C)',
+          data: temps,
+          borderColor: 'rgba(239, 68, 68, 1)',
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          borderWidth: 2,
+          pointRadius: (context) => {
+            // Highlight min/max points
+            const isMinMax = minMaxPoints.some(p => p.index === context.dataIndex);
+            return isMinMax ? 6 : 2;
+          },
+          pointHoverRadius: 8,
+          pointBackgroundColor: (context) => {
+            const minMax = minMaxPoints.find(p => p.index === context.dataIndex);
+            if (minMax) {
+              return minMax.type === 'max' ? 'rgba(239, 68, 68, 1)' : 'rgba(59, 130, 246, 1)';
+            }
+            return 'rgba(239, 68, 68, 0.6)';
+          },
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          tension: 0.4,
+          fill: true,
+          spanGaps: true,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Feels Like (°C)',
+          data: feelsLike,
+          borderColor: 'rgba(251, 146, 60, 0.8)',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [5, 5],
+          pointRadius: 2,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgba(251, 146, 60, 0.8)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1,
+          tension: 0.4,
+          fill: false,
+          spanGaps: true,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Humidity (%)',
+          data: humidity,
+          borderColor: 'rgba(156, 163, 175, 0.6)',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [5, 5],
+          pointRadius: 2,
+          pointHoverRadius: 6,
+          pointBackgroundColor: 'rgba(156, 163, 175, 0.6)',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 1,
+          tension: 0.4,
+          fill: false,
+          spanGaps: true,
+          yAxisID: 'y2'
+        },
+        {
+          label: 'Rainfall (mm)',
+          data: rainfall,
+          type: 'bar',
+          backgroundColor: 'rgba(34, 197, 94, 0.6)',
+          borderColor: 'rgba(34, 197, 94, 1)',
+          borderWidth: 1,
+          borderRadius: 2,
+          yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: {
+          bottom: 75 // Add space for icons and temperature text
+        }
+      },
+      plugins: {
+        dayIcons: {
+          icons: iconImages,
+          tides: tideMarkers,
+          nightPeriods: nightPeriods
+        },
+        legend: {
+          display: true,
+          position: 'top',
+          labels: {
+            padding: 15,
+            font: { size: 12 },
+            usePointStyle: true
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          padding: 12,
+          titleFont: { size: 14 },
+          bodyFont: { size: 14 },
+          callbacks: {
+            title: function(context) {
+              const idx = context[0].dataIndex;
+              return labels[idx];
+            },
+            label: function(context) {
+              if (context.dataset.label === 'Rainfall (mm)') {
+                return 'Rainfall: ' + context.parsed.y.toFixed(1) + 'mm';
+              } else if (context.dataset.label === 'Humidity (%)') {
+                return 'Humidity: ' + context.parsed.y.toFixed(0) + '%';
+              } else if (context.dataset.label === 'Feels Like (°C)') {
+                return 'Feels Like: ' + context.parsed.y.toFixed(1) + '°C';
+              }
+              
+              // Check if this is a min/max point
+              const minMax = minMaxPoints.find(p => p.index === context.dataIndex);
+              if (minMax) {
+                const label = minMax.type === 'max' ? 'Max' : 'Overnight Min';
+                return label + ' Temp: ' + context.parsed.y.toFixed(1) + '°C';
+              }
+              
+              return 'Temp: ' + context.parsed.y.toFixed(1) + '°C';
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          position: 'left',
+          grid: {
+            color: 'rgba(0, 0, 0, 0.1)'
+          },
+          ticks: {
+            font: { size: 12 },
+            callback: function(value) {
+              return value + '°';
+            }
+          },
+          title: {
+            display: true,
+            text: 'Temperature (°C)',
+            font: { size: 14, weight: 'bold' },
+            color: 'rgba(239, 68, 68, 1)'
+          }
+        },
+        y1: {
+          beginAtZero: true,
+          position: 'right',
+          grid: {
+            drawOnChartArea: false
+          },
+          ticks: {
+            font: { size: 12 },
+            callback: function(value) {
+              return value + 'mm';
+            }
+          },
+          title: {
+            display: true,
+            text: 'Rainfall (mm)',
+            font: { size: 14, weight: 'bold' },
+            color: 'rgba(34, 197, 94, 1)'
+          }
+        },
+        y2: {
+          beginAtZero: true,
+          max: 100,
+          position: 'right',
+          grid: {
+            drawOnChartArea: false
+          },
+          ticks: {
+            font: { size: 12 },
+            callback: function(value) {
+              return value + '%';
+            }
+          },
+          title: {
+            display: true,
+            text: 'Humidity (%)',
+            font: { size: 14, weight: 'bold' },
+            color: 'rgba(156, 163, 175, 0.8)'
+          }
+        },
+        x: {
+          grid: {
+            display: false
+          },
+          ticks: {
+            font: { size: 12 },
+            maxRotation: 0,
+            autoSkip: false
+          }
+        }
+      }
+    }
+  });
+  });
+}
+
+async function loadData() {
+  try {
+    let dailyData = null;
+    let hourlyData = null;
+    let obsData = null;
+    let astroData = null;
+    let tideData = null;
+    
+    for (const [title, url] of endpoints) {
+      const r = await fetch(proxy + encodeURIComponent(url));
+      const j = await r.json();
+      const data = j.data ?? j;
+      
+      if (title === "Daily Forecast") {
+        dailyData = data.fcst?.daily;
+      } else if (title === "1-Hourly Forecast") {
+        hourlyData = data.fcst;
+      } else if (title === "Latest Observation") {
+        obsData = data.obs;
+      } else if (title === "Astro") {
+        astroData = data.fcst?.daily;
+      }
+    }
+    
+    try {
+      const tideUrl = 'https://api.bom.gov.au/apikey/v1/forecasts/tidal/TAS_TP003';
+      const tideResponse = await fetch(proxy + encodeURIComponent(tideUrl));
+      const tideJson = await tideResponse.json();
+      tideData = tideJson.fcst || tideJson.data?.fcst || tideJson;
+    } catch (e) {
+      console.error('Error fetching tide data:', e);
+    }
+    
+    if (obsData && dailyData && astroData) {
+      const todayIconCode = dailyData[0]?.atm?.surf_air?.weather?.icon_code;
+      renderCurrentObs(obsData, todayIconCode, astroData, dailyData);
+      window.astroData = astroData; // Store for chart rendering
+    }
+    
+    if (tideData) {
+      renderTideInfo(tideData);
+      window.tideData = tideData; // Store for chart rendering
+    }
+    
+    if (dailyData) {
+      renderDailyCharts(dailyData, hourlyData);
+    }
+    
+  } catch (e) {
+    console.error('Error loading data:', e);
+    document.querySelector('.main-container').innerHTML = '<p style="color: red; padding: 20px;">Error loading weather data</p>';
+  }
+}
+
+loadData();
+</script>
+
+</body>
+</html>
