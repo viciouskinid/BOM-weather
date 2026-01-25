@@ -131,32 +131,6 @@
       padding: 0 40px;
     }
 
-    .icon-row-wrapper {
-      overflow-x: auto;
-      overflow-y: hidden;
-      margin-top: 20px;
-    }
-
-    .icon-row {
-      display: flex;
-      gap: 0;
-      padding: 0 40px;
-    }
-
-    .hour-icon {
-      height: 32px;
-      opacity: 0.9;
-      flex-shrink: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .hour-icon img {
-      width: 28px;
-      height: 28px;
-    }
-
     .loading {
       text-align: center;
       padding: 50px;
@@ -234,14 +208,46 @@
           <canvas id="continuous-chart"></canvas>
         </div>
       </div>
-      <div class="icon-row-wrapper" style="overflow-x: auto; overflow-y: hidden; margin-top: 20px;">
-        <div class="icon-row" id="icon-row"></div>
-      </div>
+
     </div>
   </div>
 
 <script>
 const proxy = "https://corsproxy.io/?url=";
+
+const dayIconPlugin = {
+  id: 'dayIcons',
+  afterDraw(chart, args, options) {
+    const { ctx, chartArea, scales } = chart;
+    const { bottom } = chartArea;
+    const xScale = scales.x;
+    
+    if (!options.icons || options.icons.length === 0) return;
+    
+    const iconSize = 28;
+    const iconY = bottom + 30; // Position below x-axis labels
+    
+    options.icons.forEach((iconData, idx) => {
+      if (!iconData.image || !iconData.image.complete) return;
+      
+      const xPos = xScale.getPixelForValue(idx);
+      
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(
+        iconData.image,
+        xPos - iconSize / 2,
+        iconY,
+        iconSize,
+        iconSize
+      );
+      ctx.restore();
+    });
+  }
+};
+
+// Register the plugin
+Chart.register(dayIconPlugin);
 
 const endpoints = [
   ["Daily Forecast", "https://api.bom.gov.au/apikey/v1/forecasts/daily/593/42?timezone=Australia%2FHobart"],
@@ -641,6 +647,39 @@ function renderContinuousChart(hourlyData, dailyData, astroData) {
   
   document.querySelector('.chart-inner').style.width = `${widthPercentage}%`;
   
+  // Preload icon images with proxy
+  const iconImages = [];
+  const imagePromises = [];
+  
+  iconUrls.forEach((url, idx) => {
+    if (url) {
+      const proxiedUrl = proxy + encodeURIComponent(url);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = proxiedUrl;
+      
+      imagePromises.push(
+        new Promise((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        })
+      );
+      
+      iconImages.push({
+        image: img,
+        index: idx
+      });
+    } else {
+      // Placeholder for hours without icons
+      iconImages.push({
+        image: null,
+        index: idx
+      });
+    }
+  });
+  
+  // Wait for all images to load before creating chart
+  Promise.all(imagePromises).then(() => {
   // Create chart
   const ctx = document.getElementById('continuous-chart').getContext('2d');
   new Chart(ctx, {
@@ -694,7 +733,15 @@ function renderContinuousChart(hourlyData, dailyData, astroData) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      layout: {
+        padding: {
+          bottom: 50 // Add space for icons
+        }
+      },
       plugins: {
+        dayIcons: {
+          icons: iconImages
+        },
         legend: {
           display: false
         },
@@ -772,38 +819,7 @@ function renderContinuousChart(hourlyData, dailyData, astroData) {
       }
     }
   });
-  
-  // Add icons below chart
-  const iconRow = document.getElementById('icon-row');
-  iconRow.style.minWidth = `${widthPercentage}%`;
-  iconRow.style.width = `${widthPercentage}%`;
-  
-  // Calculate the exact width per data point to match chart positioning
-  // Chart.js centers points, so we need to account for that
-  const chartCanvas = document.getElementById('continuous-chart');
-  const chartWidth = chartCanvas.width;
-  const iconWidth = `${100 / totalHours}%`;
-  
-  iconUrls.forEach((url, index) => {
-    const iconDiv = document.createElement('div');
-    iconDiv.className = 'hour-icon';
-    iconDiv.style.width = iconWidth;
-    iconDiv.style.minWidth = `${chartWidth / totalHours}px`;
-    iconDiv.style.display = 'flex';
-    iconDiv.style.justifyContent = 'center';
-    iconDiv.style.alignItems = 'center';
-    if (url) {
-      iconDiv.innerHTML = `<img src="${url}" alt="Weather" style="width: 28px; height: 28px;">`;
-    }
-    iconRow.appendChild(iconDiv);
-  });
-  
-  // Sync scrolling between chart and icons
-  const chartWrapper = document.querySelector('.chart-wrapper');
-  const iconWrapper = document.querySelector('.icon-row-wrapper');
-  chartWrapper.addEventListener('scroll', () => {
-    iconWrapper.scrollLeft = chartWrapper.scrollLeft;
-  });
+  }); // Close Promise.all
 }
 
 async function loadData() {
