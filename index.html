@@ -21,9 +21,10 @@
     .hdr-stats{display:flex;gap:14px;font-size:.8rem;white-space:nowrap}.hdr-stats b{font-weight:600;font-size:.95rem;margin-left:3px}.hdr-stats span{opacity:.9}
     .chev{width:10px;height:10px;border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(45deg) translateY(-2px);transition:transform .2s;opacity:.8}
     .banner[aria-expanded=true] .chev{transform:rotate(225deg) translateY(-2px)}
-    .current-details{display:none;position:absolute;left:0;right:0;top:100%;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px max(14px,env(safe-area-inset-right)) 14px max(14px,env(safe-area-inset-left));
-      background:rgb(0,45,90);border-radius:0 0 16px 16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-    .banner[aria-expanded=true] .current-details{display:grid}
+    .dropdown{display:none;position:absolute;left:0;right:0;top:100%;padding:12px max(14px,env(safe-area-inset-right)) 10px max(14px,env(safe-area-inset-left));background:rgb(0,45,90);border-radius:0 0 16px 16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+    .banner[aria-expanded=true] .dropdown{display:block}
+    .current-details{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .build{margin-top:10px;text-align:center;font-size:.7rem;opacity:.65;font-variant-numeric:tabular-nums}
     .detail-row{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;background:rgba(255,255,255,.1);border-radius:12px;margin:0!important;border:0!important;text-align:center}
     .detail-label{font-size:.7rem;opacity:.75}.detail-value{font-size:1.05rem;font-weight:600}
     /* show only: Today's rainfall, Sunrise, Sunset (feels like and max are in the header) */
@@ -50,7 +51,10 @@
       <div class="hdr-stats"><span>Feels like<b id="hdr-feels">--°</b></span><span>Max<b id="hdr-max">--°</b></span></div>
       <div class="chev"></div>
     </div>
-    <div class="current-details" id="sidebar-details"></div>
+    <div class="dropdown">
+      <div class="current-details" id="sidebar-details"></div>
+      <div class="build" id="build" title="Build date and time (local)"></div>
+    </div>
   </div>
 
   <div class="main-container">
@@ -140,33 +144,43 @@ const dayIconPlugin = {
     
     if (!options.icons || options.icons.length === 0) return;
     
-    const iconSize = 24;
-    const iconY = bottom + 28; // Position below x-axis labels
-    
+    const iconSize = 18;
+    const rowMid = bottom + 4 + iconSize / 2; // one compact row: day  icon  max
+    const font = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
     options.icons.forEach((iconData) => {
       if (!iconData.image || !iconData.image.complete) return;
-      
+
       const xPos = xScale.getPixelForValue(iconData.labelIndex);
-      
+      const hasTemp = iconData.maxTemp !== undefined && iconData.maxTemp !== -Infinity;
+      const name = (iconData.name || '').slice(0, 3);
+      const temp = hasTemp ? `${Math.round(iconData.maxTemp)}°` : '';
+
       ctx.save();
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'left';
+      ctx.font = '600 11px ' + font;
+      const nameW = ctx.measureText(name).width;
+      ctx.font = 'bold 12px ' + font;
+      const tempW = ctx.measureText(temp).width;
+      const total = nameW + 4 + iconSize + (temp ? 3 + tempW : 0);
+      let x = xPos - total / 2;
+
+      ctx.font = '600 11px ' + font;
+      ctx.fillStyle = 'rgba(55, 65, 81, 1)';
+      ctx.fillText(name, x, rowMid);
+      x += nameW + 4;
+
       ctx.globalAlpha = 0.9;
-      ctx.drawImage(
-        iconData.image,
-        xPos - iconSize / 2,
-        iconY,
-        iconSize,
-        iconSize
-      );
-      
-      // Draw max temperature below icon
-      if (iconData.maxTemp !== undefined && iconData.maxTemp !== -Infinity) {
-        ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)'; // Black color
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.fillText(`${Math.round(iconData.maxTemp)}°`, xPos, iconY + iconSize + 4);
+      ctx.drawImage(iconData.image, x, rowMid - iconSize / 2, iconSize, iconSize);
+      ctx.globalAlpha = 1;
+      x += iconSize + 3;
+
+      if (temp) {
+        ctx.font = 'bold 12px ' + font;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillText(temp, x, rowMid);
       }
-      
       ctx.restore();
     });
     
@@ -726,7 +740,8 @@ function renderDailyCharts(dailyData, hourlyData) {
       iconImages.push({
         image: img,
         labelIndex: midpoint,
-        maxTemp: iconData.maxTemp
+        maxTemp: iconData.maxTemp,
+        name: dayBoundaries[idx].name
       });
     }
   });
@@ -843,7 +858,7 @@ function renderDailyCharts(dailyData, hourlyData) {
       layout: {
         padding: {
           top: 0,
-          bottom: 58 // Add space for icons and temperature text
+          bottom: 26 // Add space for icons and temperature text
         }
       },
       plugins: {
@@ -958,6 +973,7 @@ function renderDailyCharts(dailyData, hourlyData) {
             display: false
           },
           ticks: {
+            display: false,
             font: { size: 11 },
             maxRotation: 0,
             autoSkip: false
@@ -1042,5 +1058,15 @@ loadData();
 })();
 </script>
 
+<script>
+/* BUILD STAMP: on EVERY code change set BUILD_STAMP to the current local time (YYYY-MM-DD HH:MM:SS).
+   If no clock is available set BUILD_STAMP = 'unknown' and increment BUILD_VERSION; with a clock set BUILD_VERSION = null. */
+const BUILD_STAMP   = '2026-11-13 10:59:08'; // BUILD_STAMP
+const BUILD_VERSION = null;                  // BUILD_VERSION
+const BUILD_NOTE    = 'AI had no clock access — version bumped.';
+document.getElementById('build').textContent = BUILD_STAMP !== 'unknown'
+  ? 'Build ' + BUILD_STAMP
+  : 'Build unknown · v' + BUILD_VERSION + ' (' + BUILD_NOTE + ')';
+</script>
 </body>
 </html>
