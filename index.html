@@ -10,10 +10,10 @@
   :root{
     --bg:#fbfcfd; --ink:#10212e; --muted:#62768a; --grid:rgba(16,33,46,.12);
     --temp:#e8452c; --feels:#d98a10; --rain:#14a05f; --tide:#2f5fd0; --night:rgba(30,45,100,.10); --cursor:#10212e;
-    --acc:#1f6fd0;
+    --acc:#1f6fd0; --wkend:rgba(214,150,40,.13);
   }
   @media (prefers-color-scheme:dark){
-    :root{--bg:#0a121c;--ink:#e8f0f6;--muted:#8aa0b2;--grid:rgba(255,255,255,.13);--temp:#ff7a55;--feels:#f2b83c;--rain:#3ddc97;--tide:#7aa2ff;--night:rgba(0,0,0,.32);--cursor:#e8f0f6;--acc:#3b82f6}
+    :root{--bg:#0a121c;--ink:#e8f0f6;--muted:#8aa0b2;--grid:rgba(255,255,255,.13);--temp:#ff7a55;--feels:#f2b83c;--rain:#3ddc97;--tide:#7aa2ff;--night:rgba(0,0,0,.32);--cursor:#e8f0f6;--acc:#3b82f6;--wkend:rgba(255,190,90,.10)}
   }
   *{box-sizing:border-box;margin:0;padding:0}
   [hidden]{display:none!important}
@@ -71,6 +71,7 @@
   #chart{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
   #chart text{font-family:inherit}
   .night{fill:var(--night)}
+  .wkend{fill:var(--wkend)}
   .grid-l{stroke:var(--grid);stroke-width:1}
   .glbl{fill:var(--muted);font-size:11px}
   .dline{stroke:var(--grid);stroke-width:1;stroke-dasharray:3 4}
@@ -96,10 +97,10 @@
 
   /* ---------- Radar ---------- */
   .rscroll{
-    flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+    flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;
     background:var(--bg);padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
   }
-  .stagewrap{width:100%;aspect-ratio:var(--ar,512 / 557);position:relative;background:#fff}
+  .stagewrap{width:100%;margin:0 auto;aspect-ratio:var(--ar,512 / 557);position:relative;background:#fff}
   .stage{position:relative;width:100%;height:100%;isolation:isolate;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .stage img{position:absolute;left:0;top:0;width:var(--lw,100%);height:var(--lh,91.9%);display:block;pointer-events:none}
   .stage img.leg{width:100%;height:100%;z-index:-4}
@@ -136,7 +137,9 @@
   .fr.on{opacity:1}
   .mrings{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   .mrings text{font-family:inherit;font-size:10.5px;font-weight:650;fill:#10212e;paint-order:stroke;stroke:rgba(255,255,255,.85);stroke-width:3px}
-  .mctl{position:absolute;right:max(10px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:6}
+  #view-radar{position:relative}
+  .mctl{position:absolute;right:max(10px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:4}
+  .rdiag{margin-top:12px;font-size:.64rem;color:var(--muted);line-height:1.35}
   .mctl button{width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.95);color:#10212e;font-size:1.35rem;font-weight:600;line-height:1;display:grid;place-items:center;box-shadow:0 1px 6px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent}
   .mctl button:active{background:#dfe8f0}
   .mleg{position:absolute;left:max(10px,env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:6;width:min(250px,48vw);background:rgba(255,255,255,.9);color:#10212e;border-radius:8px;padding:5px 8px 4px;font-size:.66rem;pointer-events:none}
@@ -214,6 +217,7 @@
           </div>
         </div>
       </div>
+      <div class="rdiag" id="rdiag"></div>
     </div>
   </header>
   <div class="rscroll" id="rscroll" hidden>
@@ -225,15 +229,15 @@
     <div class="mlayer" id="mLabels"></div>
     <svg class="mrings" id="mRings"></svg>
     <div class="mleg" id="mLeg" hidden></div>
-    <div class="mattr">© OpenStreetMap contributors © CARTO · Radar: Bureau of Meteorology</div>
-    <div class="mctl">
-      <button id="zIn" type="button" aria-label="Zoom in">+</button>
-      <button id="zOut" type="button" aria-label="Zoom out">−</button>
-      <button id="zHome" type="button" aria-label="Centre on Hobart radar">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
-      </button>
-    </div>
+    <div class="mattr">© Esri, HERE, Garmin, OpenStreetMap contributors · Radar: Bureau of Meteorology</div>
     <div class="rmsg" id="tmsg" hidden></div>
+  </div>
+  <div class="mctl">
+    <button id="zIn" type="button" aria-label="Zoom in">+</button>
+    <button id="zOut" type="button" aria-label="Zoom out">−</button>
+    <button id="zHome" type="button" aria-label="Centre on Hobart radar">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+    </button>
   </div>
 </div>
 
@@ -422,6 +426,18 @@ function renderChart(){
   const f = v => v.toFixed(1);
 
   let s = `<defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--temp)" stop-opacity=".25"/><stop offset="1" style="stop-color:var(--temp)" stop-opacity="0"/></linearGradient></defs>`;
+
+  /* weekend days get a slightly warmer background */
+  for (let i = 0; i < hours.length;) {
+    let j = i;
+    while (j + 1 < hours.length && hours[j + 1]._p.key === hours[i]._p.key) j++;
+    if (hours[i]._p.wd === 'Sat' || hours[i]._p.wd === 'Sun') {
+      const xa = i === 0 ? padL : (hours[i]._p.h === 0 ? X(hours[i].t) : X(hours[i].t) - pxh / 2);
+      const xb = j === hours.length - 1 ? w - padR : (hours[j]._p.h === 23 ? X(hours[j].t) + pxh : X(hours[j].t) + pxh / 2);
+      if (xb > xa) s += `<rect class="wkend" x="${f(xa)}" y="${top}" width="${f(xb - xa)}" height="${h - top}"/>`;
+    }
+    i = j + 1;
+  }
 
   for (const [a, b] of nights) {
     const x0 = Math.max(X(a), padL), x1 = Math.min(X(b), w - padR);
@@ -711,6 +727,7 @@ function centerMap(){
   if (!sc || sc.hidden || !w.clientHeight) return;
   const lh = parseFloat($('stage').style.getPropertyValue('--lh')) || 91.92;
   sc.scrollTop = Math.max(0, w.clientHeight * lh / 100 / 2 - sc.clientHeight / 2);
+  sc.scrollLeft = Math.max(0, (sc.scrollWidth - sc.clientWidth) / 2);
 }
 /* frame list for an image product: BOM's own loop page (via your proxy), else probe the 5-minute file names */
 async function discover(p){
@@ -782,14 +799,14 @@ const T = {ok:0, err:0};
 const RAINBAR = ['245,245,255','180,180,255','120,120,255','20,20,255','0,216,195','0,150,144','0,102,102','255,255,0','255,200,0','255,150,0','255,100,0','255,0,0','200,0,0','120,0,0','40,0,0'];
 
 class TileSet {
-  constructor(parent, track){ this.p = parent; this.m = new Map(); this.track = track; }
+  constructor(parent, track, ref){ this.p = parent; this.m = new Map(); this.track = track; this.ref = ref || 'no-referrer'; }
   sync(list){
     const keep = new Set();
     for (const d of list) {
       keep.add(d.k);
       let im = this.m.get(d.k);
       if (!im) {
-        im = new Image(); im.referrerPolicy = 'no-referrer'; im.alt = ''; im.draggable = false;
+        im = new Image(); im.referrerPolicy = this.ref; im.alt = ''; im.draggable = false;
         if (this.track) { im.onload = () => { T.ok++; }; im.onerror = () => { T.err++; im.style.display = 'none'; }; }
         else im.onerror = () => { im.style.display = 'none'; };
         im.src = d.url;
@@ -802,8 +819,8 @@ class TileSet {
 }
 let baseSet, labelSet;
 function mapInit(){
-  baseSet = new TileSet($('mBase'), false);
-  labelSet = new TileSet($('mLabels'), false);
+  baseSet = new TileSet($('mBase'), false, 'strict-origin-when-cross-origin');
+  labelSet = new TileSet($('mLabels'), false, 'strict-origin-when-cross-origin');
 }
 const clampZ = z => Math.max(ZMIN, Math.min(ZMAX, z));
 function clampCenter(){
@@ -848,9 +865,9 @@ function layoutMap(){
     const r0 = Math.max(0, Math.floor((OS - yT) / span)), r1 = Math.min(n - 1, Math.floor((OS - yB) / span));
     const base = [], lab = [];
     for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
-      const g = rect(-OS + c * span, OS - r * span, span), sub = 'abcd'[(r + c) % 4];
-      base.push({k:`${Lb}/${r}/${c}`, url:`https://${sub}.basemaps.cartocdn.com/light_nolabels/${Lb}/${c}/${r}.png`, ...g});
-      lab.push({k:`${Lb}/${r}/${c}`, url:`https://${sub}.basemaps.cartocdn.com/light_only_labels/${Lb}/${c}/${r}.png`, ...g});
+      const g = rect(-OS + c * span, OS - r * span, span);
+      base.push({k:`${Lb}/${r}/${c}`, url:`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/${Lb}/${r}/${c}`, ...g});
+      lab.push({k:`${Lb}/${r}/${c}`, url:`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/${Lb}/${r}/${c}`, ...g});
     }
     baseSet.sync(base);
     labelSet.sync(R.tl.labels ? lab : []);
@@ -935,9 +952,37 @@ function panBy(dx, dy){
   mp.addEventListener('pointerup', end);
   mp.addEventListener('pointercancel', end);
   mp.addEventListener('wheel', e => { e.preventDefault(); const c = rel(e); zoomAround(c.x, c.y, M.z - e.deltaY * 0.0015); }, {passive:false});
-  $('zIn').addEventListener('click', () => zoomAround(M.w / 2, M.h / 2, Math.round(M.z) + 1));
-  $('zOut').addEventListener('click', () => zoomAround(M.w / 2, M.h / 2, Math.round(M.z) - 1));
-  $('zHome').addEventListener('click', resetView);
+})();
+/* zoom for the older image products: scale the picture (smaller than the screen, or bigger and pan sideways too) */
+R.imgScale = 1;
+function imgZoom(f, cx, cy){
+  const sc = $('rscroll'), w = $('stagewrap');
+  const nz = Math.max(0.35, Math.min(3, R.imgScale * f));
+  if (Math.abs(nz - R.imgScale) < 1e-4) return;
+  const s0 = sc.getBoundingClientRect(), r0 = w.getBoundingClientRect();
+  const fx = r0.width ? (cx + s0.left - r0.left) / r0.width : .5, fy = r0.height ? (cy + s0.top - r0.top) / r0.height : .5;
+  R.imgScale = nz;
+  w.style.width = (nz * 100) + '%';
+  const r1 = w.getBoundingClientRect();
+  if (r1.width) { sc.scrollLeft += r1.left - (s0.left + cx - fx * r1.width); sc.scrollTop += r1.top - (s0.top + cy - fy * r1.height); }
+}
+function zoomBtn(dir){
+  if (R.mode === 'tile') zoomAround(M.w / 2, M.h / 2, Math.round(M.z) + dir);
+  else { const sc = $('rscroll'); imgZoom(dir > 0 ? 1.4 : 1 / 1.4, sc.clientWidth / 2, sc.clientHeight / 2); }
+}
+$('zIn').addEventListener('click', () => zoomBtn(1));
+$('zOut').addEventListener('click', () => zoomBtn(-1));
+$('zHome').addEventListener('click', () => {
+  if (R.mode === 'tile') resetView();
+  else { R.imgScale = 1; $('stagewrap').style.width = '100%'; centerMap(); }
+});
+(function pinchImage(){
+  const sc = $('rscroll'); let p = null;
+  const info = e => { const a = e.touches[0], b = e.touches[1], r = sc.getBoundingClientRect(); return {d:Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, x:(a.clientX + b.clientX) / 2 - r.left, y:(a.clientY + b.clientY) / 2 - r.top}; };
+  sc.addEventListener('touchstart', e => { p = e.touches.length === 2 ? info(e) : null; }, {passive:true});
+  sc.addEventListener('touchmove', e => { if (e.touches.length === 2 && p) { e.preventDefault(); const n = info(e); imgZoom(n.d / p.d, n.x, n.y); p = n; } }, {passive:false});
+  sc.addEventListener('touchend', () => { p = null; });
+  document.addEventListener('gesturestart', e => e.preventDefault());
 })();
 function mapTap(){
   if (rbar.getAttribute('aria-expanded') === 'true') { closeR(); return; }
@@ -966,19 +1011,21 @@ function parseCaps(xml){
 async function getCaps(){
   if (R.caps && Date.now() - R.capsAt < 4 * 60e3) return R.caps;
   const xml = await proxy(CAPS_URL, 'text');
-  R.caps = parseCaps(xml); R.capsAt = Date.now();
+  const caps = parseCaps(xml);
+  if (!Object.keys(caps.layers).length) throw new Error('unexpected reply “' + xml.slice(0, 70).replace(/\s+/g, ' ') + '”');
+  R.caps = caps; R.capsAt = Date.now();
   return R.caps;
 }
 /* can the browser fetch BOM tiles directly, or only through your proxy? */
 async function pickRoute(layer, iso){
   const lv = LEVELS.find(v => v.l === 8) || LEVELS[LEVELS.length - 1], span = 256 * RES0 / Math.pow(2, lv.l);
   const col = Math.floor((SX - lv.x0) / span), row = Math.floor((lv.y0 - SY) / span);
-  R.route = 'direct';
-  const url = bomUrl(layer, iso, lv.l, row, col);
-  if (await loadImg(url, 7000)) return;
+  /* your proxy is the route already known to work for api.bom.gov.au, so try it first */
   R.route = 'proxy';
   if (await loadImg(bomUrl(layer, iso, lv.l, row, col), 10000)) return;
   R.route = 'direct';
+  if (await loadImg(bomUrl(layer, iso, lv.l, row, col), 7000)) return;
+  R.route = 'proxy';
 }
 function setLegendBar(p){
   const el = $('mLeg');
@@ -988,19 +1035,21 @@ function setLegendBar(p){
 }
 async function loadTiles(id, p){
   let caps;
-  try { caps = await getCaps(); } catch (e) { return tilesFailed(id, p); }
+  try { caps = await getCaps(); } catch (e) { R.why = 'capabilities request failed: ' + e.message; return tilesFailed(id, p); }
   if (id !== R.loadId) return;
   const info = caps.layers[p.tile];
-  if (!info || !info.times.length) return tilesFailed(id, p);
+  if (!info || !info.times.length) { R.why = 'layer not listed by BOM'; return tilesFailed(id, p); }
   if (caps.levels) LEVELS = caps.levels;
   const times = [...info.times].sort();
   if (!R.route) { await pickRoute(p.tile, times[times.length - 1]); if (id !== R.loadId) return; }
   const mData = $('mData');
   mData.innerHTML = '';
+  R.why = '';
   R.frames = times.map(iso => { const el = document.createElement('div'); el.className = 'fr'; mData.appendChild(el); return {iso, ms:Date.parse(iso), el, set:new TileSet(el, true)}; });
   T.ok = 0; T.err = 0;
   $('slider').max = R.frames.length - 1;
   setLegendBar(p);
+  setDiag(`Zoomable map · BOM tiles ${R.route === 'proxy' ? 'via your proxy' : 'direct'} · ${R.frames.length} frames`);
   resizeMap();
   layoutMap();
   setMsg('');
@@ -1016,6 +1065,7 @@ async function loadTiles(id, p){
 function tilesFailed(id, p){
   if (id !== R.loadId) return;
   R.noTiles = true;
+  setDiag((R.why || `BOM tiles didn’t load (${T.err} errors, ${T.ok} loaded)`) + ' · using image radar');
   if (p.id) { loadRadar(); return; }
   $('rrefresh').classList.remove('spin');
   setMsg(`Couldn’t load BOM’s map tiles for this layer.<br><a href="${BOM}/weather-and-climate/rain-radar-and-weather-maps?radar=76-hobart-%28mt-koonya%29" target="_blank" rel="noopener">Open on BOM ↗</a>`);
@@ -1043,6 +1093,7 @@ function setMode(m){
   $('rscroll').hidden = m !== 'image';
   $('rmap').hidden = m !== 'tile';
 }
+function setDiag(t){ R.diag = t || ''; const el = $('rdiag'); if (el) el.textContent = R.diag; }
 async function loadRadar(){
   const id = ++R.loadId, p = PRODUCTS[R.prod];
   stopPlay();
@@ -1055,6 +1106,7 @@ async function loadRadar(){
   if (tile) { setMsg('Loading radar…'); return loadTiles(id, p); }
   if (!p.id) { $('rrefresh').classList.remove('spin'); setMsg('This layer needs BOM’s map tiles, which didn’t load.'); return; }
   requestAnimationFrame(centerMap);
+  if (!R.noTiles) setDiag('Image radar');
   setMsg('Loading radar…');
   return loadImages(id, p);
 }
@@ -1161,7 +1213,7 @@ load();
 <script>
 /* BUILD STAMP: on EVERY code change set BUILD_STAMP to the current local time (YYYY-MM-DD HH:MM:SS).
    If no clock is available set BUILD_STAMP = 'unknown' and increment BUILD_VERSION; with a clock set BUILD_VERSION = null. */
-const BUILD_STAMP   = '2026-11-16 11:18:24'; // BUILD_STAMP
+const BUILD_STAMP   = '2026-11-16 16:15:35'; // BUILD_STAMP
 const BUILD_VERSION = null;                  // BUILD_VERSION
 const BUILD_NOTE    = 'AI had no clock access — version bumped.';
 document.getElementById('build').textContent = BUILD_STAMP !== 'unknown'
