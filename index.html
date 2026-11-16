@@ -1,1067 +1,1167 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#003b71">
-  <title>Daily Weather Summary</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    html,body{height:100%}
-    body{font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#fff;color:#1f2937;display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;-webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased}
-    .banner{position:relative;z-index:10;flex:none;color:#fff;cursor:pointer;-webkit-tap-highlight-color:transparent;
-      background-image:linear-gradient(-180deg,rgb(0,30,60) 0%,rgb(0,59,113) 100%);
-      padding:0 max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left))}
-    .banner-bar{display:flex;align-items:center;gap:12px;height:48px}
-    .location{font-size:1.05rem;font-weight:600;flex:1}
-    .current-icon{width:34px;height:34px}.current-icon img{width:100%;height:100%;display:block}
-    .current-temp{font-size:1.7rem;font-weight:300;line-height:1}
-    .condition{display:none}
-    .hdr-stats{display:flex;gap:14px;font-size:.8rem;white-space:nowrap}.hdr-stats b{font-weight:600;font-size:.95rem;margin-left:3px}.hdr-stats span{opacity:.9}
-    .chev{width:10px;height:10px;border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(45deg) translateY(-2px);transition:transform .2s;opacity:.8}
-    .banner[aria-expanded=true] .chev{transform:rotate(225deg) translateY(-2px)}
-    .dropdown{display:none;position:absolute;left:0;right:0;top:100%;padding:12px max(14px,env(safe-area-inset-right)) 10px max(14px,env(safe-area-inset-left));background:rgb(0,45,90);border-radius:0 0 16px 16px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-    .banner[aria-expanded=true] .dropdown{display:block}
-    .current-details{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-    .build{margin-top:10px;text-align:center;font-size:.7rem;opacity:.65;font-variant-numeric:tabular-nums}
-    .detail-row{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;background:rgba(255,255,255,.1);border-radius:12px;margin:0!important;border:0!important;text-align:center}
-    .detail-label{font-size:.7rem;opacity:.75}.detail-value{font-size:1.05rem;font-weight:600}
-    /* show only: Today's rainfall, Sunrise, Sunset (feels like and max are in the header) */
-    .detail-row:nth-child(-n+2),.detail-row:nth-child(n+4):nth-child(-n+8),.detail-row:nth-child(n+11){display:none}
-    .main-container{flex:1;min-height:0;padding:0 max(8px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
-    .chart-container,.chart-wrapper,.chart-inner{height:100%;width:100%;position:relative}
-    #temp-chart{touch-action:pan-y}
-    .rotate{display:none;position:fixed;inset:0;z-index:99;background:#003b71;color:#fff;align-items:center;justify-content:center;flex-direction:column;gap:16px;text-align:center;padding:24px;font-size:1.1rem}
-    .rotate i{font-size:3rem;font-style:normal;display:block;animation:tilt 1.6s ease-in-out infinite}
-    @keyframes tilt{0%,100%{transform:rotate(0)}50%{transform:rotate(-90deg)}}
-    @media (orientation:portrait) and (max-width:700px){.rotate{display:flex}}
-    @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b2a4a">
+<meta name="color-scheme" content="light dark">
+<title>Hobart weather</title>
+<style>
+  :root{
+    --bg:#fbfcfd; --ink:#10212e; --muted:#62768a; --grid:rgba(16,33,46,.12);
+    --temp:#e8452c; --feels:#d98a10; --rain:#14a05f; --tide:#2f5fd0; --night:rgba(30,45,100,.10); --cursor:#10212e;
+    --acc:#1f6fd0;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#0a121c;--ink:#e8f0f6;--muted:#8aa0b2;--grid:rgba(255,255,255,.13);--temp:#ff7a55;--feels:#f2b83c;--rain:#3ddc97;--tide:#7aa2ff;--night:rgba(0,0,0,.32);--cursor:#e8f0f6;--acc:#3b82f6}
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none!important}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{
+    font:16px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+    background:var(--bg);color:var(--ink);display:flex;flex-direction:column;height:100vh;height:100dvh;
+    -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;-webkit-user-select:none;user-select:none;
+    -webkit-text-size-adjust:100%;
+  }
+  button{font:inherit;color:inherit}
+  .view{flex:1;min-height:0;display:flex;flex-direction:column}
+
+  /* ---------- Slim header (shared) ---------- */
+  .bar{
+    position:relative;z-index:5;flex:none;display:flex;align-items:center;gap:12px;height:30px;color:#fff;
+    background:linear-gradient(180deg,#07203a,#0e3a66);-webkit-tap-highlight-color:transparent;
+    padding:env(safe-area-inset-top,0px) max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px));
+    box-sizing:content-box;white-space:nowrap;
+  }
+  .bar.tap{cursor:pointer}
+  .loc{flex:none;font-size:.9rem;font-weight:650}
+  .cur{flex:none;display:flex;align-items:center;gap:4px}
+  .cur .t{font-size:1.15rem;font-weight:500;letter-spacing:-.01em}
+  .cur .i{font-size:1.05rem;line-height:1}
+  .st{flex:none;display:flex;gap:11px;font-size:.72rem;opacity:.92}
+  .st b{font-size:.84rem;font-weight:650;margin-left:1px}
+  .msg{flex:1;min-width:0;font-size:.78rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;text-align:right}
+  .ibtn{flex:none;width:26px;height:26px;border-radius:50%;border:0;background:rgba(255,255,255,.15);color:#fff;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .ibtn.spin svg{animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .pill{flex:none;height:24px;padding:0 10px;border-radius:12px;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:.74rem;font-weight:650;cursor:pointer}
+  .chev{flex:none;width:8px;height:8px;border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(45deg) translateY(-2px);opacity:.7;transition:transform .2s}
+  .bar[aria-expanded=true] .chev{transform:rotate(225deg) translateY(-2px)}
+
+  /* Details drop-down */
+  .details{
+    display:none;position:absolute;left:0;right:0;top:100%;background:#0b2f55;border-radius:0 0 16px 16px;white-space:normal;
+    box-shadow:0 10px 28px rgba(0,0,0,.35);cursor:default;
+    padding:10px max(14px,env(safe-area-inset-right,0px)) 10px max(14px,env(safe-area-inset-left,0px));
+  }
+  .bar[aria-expanded=true] .details{display:block}
+  .updrow{font-size:.74rem;opacity:.8;margin-bottom:8px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .cell{background:rgba(255,255,255,.09);border-radius:12px;padding:8px 10px}
+  .cell small{display:block;font-size:.68rem;opacity:.72}
+  .cell b{display:block;font-size:1.05rem;font-weight:600;margin-top:1px}
+  .build{margin-top:8px;text-align:center;font-size:.66rem;opacity:.55}
+
+  /* ---------- Chart ---------- */
+  .chartwrap{
+    flex:1;min-height:0;position:relative;
+    padding:0 max(6px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) * .4) max(6px,env(safe-area-inset-left,0px));
+  }
+  #chart{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  #chart text{font-family:inherit}
+  .night{fill:var(--night)}
+  .grid-l{stroke:var(--grid);stroke-width:1}
+  .glbl{fill:var(--muted);font-size:11px}
+  .dline{stroke:var(--grid);stroke-width:1;stroke-dasharray:3 4}
+  .hlbl{fill:var(--muted);font-size:11px}
+  .rain{fill:var(--rain)}
+  .rlbl{fill:var(--rain);font-size:10.5px;font-weight:600}
+  .area{fill:url(#ag)}
+  .temp-l{fill:none;stroke:var(--temp);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+  .feels{fill:none;stroke:var(--feels);stroke-width:1.6;stroke-dasharray:5 4;stroke-linecap:round}
+  .dot{stroke:var(--bg);stroke-width:2}
+  .dot.mx{fill:var(--temp)} .dot.mn{fill:var(--tide)}
+  .ext{fill:var(--ink);font-size:12px;font-weight:700}
+  .tide{fill:var(--tide);stroke:var(--bg);stroke-width:1.2}
+  .dname{fill:var(--ink);font-size:12px;font-weight:650}
+  .dmax{fill:var(--ink);font-size:12.5px;font-weight:700}
+  .curl{stroke:var(--cursor);stroke-width:1.5;opacity:.55}
+  .curd{fill:var(--bg);stroke:var(--cursor);stroke-width:2.5}
+  .nowd{fill:var(--temp);stroke:var(--bg);stroke-width:2}
+  .tip rect{fill:rgba(8,20,32,.92)}
+  .tip text{fill:#fff;font-size:11.5px}
+  .tip .tt{font-weight:700;font-size:12px}
+  .tip .tm{font-size:14px;font-weight:700}
+
+  /* ---------- Radar ---------- */
+  .rscroll{
+    flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+    background:var(--bg);padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);
+  }
+  .stagewrap{width:100%;aspect-ratio:var(--ar,512 / 557);position:relative;background:#fff}
+  .stage{position:relative;width:100%;height:100%;isolation:isolate;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .stage img{position:absolute;left:0;top:0;width:var(--lw,100%);height:var(--lh,91.9%);display:block;pointer-events:none}
+  .stage img.leg{width:100%;height:100%;z-index:-4}
+  .rmsg{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;text-align:center;padding:16px;background:rgba(255,255,255,.86);color:#10212e;font-size:.86rem}
+  .rmsg a{color:#1f6fd0;font-weight:650;-webkit-user-select:auto;user-select:auto}
+  .ptime{flex:none;font-size:.78rem;opacity:.92;white-space:nowrap}
+  .ptime b{font-weight:650}
+  .rdetails{
+    --ink:#fff;--muted:#9db8d8;--grid:rgba(255,255,255,.3);--acc:#3b82f6;color:#fff;
+    max-height:calc(100vh - 44px);max-height:calc(100dvh - 44px);overflow-y:auto;overscroll-behavior:contain;
+  }
+  .rgrid{display:grid;grid-template-columns:1fr;gap:12px}
+  .rcol{display:flex;flex-direction:column;gap:12px;min-width:0}
+  @media (min-width:640px) and (orientation:landscape){.rgrid{grid-template-columns:1fr 1fr;gap:20px}}
+  .player{display:flex;align-items:center;gap:10px}
+  .pbtn{flex:none;width:38px;height:38px;border-radius:50%;border:0;background:var(--acc);color:#fff;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  #slider{flex:1;min-width:0;accent-color:var(--acc);height:28px}
+  .group h3{font-size:.64rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:650;margin-bottom:5px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    min-height:30px;padding:0 11px;border-radius:15px;border:1px solid var(--grid);background:transparent;color:var(--ink);
+    font-size:.76rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none;-webkit-tap-highlight-color:transparent;
+  }
+  .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+  .chip[disabled]{opacity:.4;cursor:default}
+  .acts{display:flex;gap:14px;margin-top:8px}
+  .acts button{border:0;background:none;color:#8db8ff;font-size:.76rem;font-weight:650;cursor:pointer;padding:4px 0}
+
+  /* ---------- Zoomable tile map ---------- */
+  .rmap{position:relative;flex:1;min-height:0;overflow:hidden;background:#e6ecf0;touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none}
+  .mlayer{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+  .mlayer img{position:absolute;display:block;max-width:none;-webkit-user-drag:none}
+  .fr{position:absolute;inset:0;opacity:0}
+  .fr.on{opacity:1}
+  .mrings{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .mrings text{font-family:inherit;font-size:10.5px;font-weight:650;fill:#10212e;paint-order:stroke;stroke:rgba(255,255,255,.85);stroke-width:3px}
+  .mctl{position:absolute;right:max(10px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:6}
+  .mctl button{width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.95);color:#10212e;font-size:1.35rem;font-weight:600;line-height:1;display:grid;place-items:center;box-shadow:0 1px 6px rgba(0,0,0,.35);cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .mctl button:active{background:#dfe8f0}
+  .mleg{position:absolute;left:max(10px,env(safe-area-inset-left,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:6;width:min(250px,48vw);background:rgba(255,255,255,.9);color:#10212e;border-radius:8px;padding:5px 8px 4px;font-size:.66rem;pointer-events:none}
+  .lgbar{display:flex;height:9px;border-radius:3px;overflow:hidden}
+  .lgbar i{flex:1}
+  .lglb{display:flex;justify-content:space-between;margin-top:2px}
+  .mattr{position:absolute;left:max(6px,env(safe-area-inset-left,0px));bottom:calc(4px + env(safe-area-inset-bottom,0px));z-index:6;font-size:.58rem;color:#2a3946;background:rgba(255,255,255,.65);padding:0 5px;border-radius:3px;pointer-events:none}
+
+  /* Rotate prompt (chart view, portrait phones) */
+  .rotate{display:none;position:fixed;inset:0;z-index:99;background:#0b2a4a;color:#fff;align-items:center;justify-content:center;flex-direction:column;gap:16px;text-align:center;padding:24px;font-size:1.1rem}
+  .rotate i{font-size:3rem;font-style:normal;display:block;animation:tilt 1.6s ease-in-out infinite}
+  .rotate button{margin-top:6px;border:0;border-radius:18px;background:rgba(255,255,255,.18);color:#fff;padding:9px 18px;font-size:.9rem;font-weight:650}
+  @keyframes tilt{0%,100%{transform:rotate(0)}50%{transform:rotate(-90deg)}}
+  @media (orientation:portrait) and (max-width:700px){body[data-view=chart] .rotate{display:flex}}
+  @media (max-width:640px){.st .opt{display:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
 </head>
-<body>
-  <div class="rotate"><i>&#128241;</i>Rotate your phone to landscape to view the forecast</div>
+<body data-view="chart">
+<div class="rotate"><i>&#128241;</i>Rotate your phone to landscape to view the forecast<button type="button" id="rotRadar">Or open the radar</button></div>
 
-  <div class="banner" id="banner" role="button" tabindex="0" aria-expanded="false" aria-label="Current conditions, tap for details">
-    <div class="banner-bar">
-      <div class="location">Hobart</div>
-      <div class="condition" id="sidebar-condition"></div>
-      <div class="current-icon"><img src="https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/partly-cloudy.svg" alt=""></div>
-      <div class="current-temp" id="sidebar-temp">--°</div>
-      <div class="hdr-stats"><span>Feels like<b id="hdr-feels">--°</b></span><span>Max<b id="hdr-max">--°</b></span></div>
-      <div class="chev"></div>
+<!-- ===================== FORECAST CHART ===================== -->
+<div class="view" id="view-chart">
+  <header class="bar tap" id="bar" role="button" tabindex="0" aria-expanded="false" aria-label="Current conditions. Tap for details">
+    <div class="loc">Hobart</div>
+    <div class="cur"><span class="t" id="temp">--°</span><span class="i" id="ico" aria-hidden="true"></span></div>
+    <div class="st">
+      <span>Feels<b id="feels">--°</b></span>
+      <span>High<b id="hi">--°</b></span>
+      <span class="opt">Overnight<b id="lo">--°</b></span>
     </div>
-    <div class="dropdown">
-      <div class="current-details" id="sidebar-details"></div>
-      <div class="build" id="build" title="Build date and time (local)"></div>
+    <div class="msg" id="msg">Loading forecast…</div>
+    <button id="radarbtn" class="ibtn" type="button" aria-label="Open rain radar">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6.5-6.5"/></svg>
+    </button>
+    <button id="refresh" class="ibtn" type="button" aria-label="Refresh forecast">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
+    <div class="chev"></div>
+    <div class="details" id="details">
+      <div class="updrow" id="upd">Loading…</div>
+      <div class="grid" id="grid"></div>
+      <div class="build" id="build"></div>
     </div>
-  </div>
+  </header>
+  <main class="chartwrap" id="chartwrap">
+    <svg id="chart" role="img" aria-label="Seven day hourly forecast chart"></svg>
+  </main>
+</div>
 
-  <div class="main-container">
-    <div class="chart-container">
-      <div class="chart-wrapper">
-        <div class="chart-inner"><canvas id="temp-chart"></canvas></div>
+<!-- ===================== RADAR ===================== -->
+<div class="view" id="view-radar" hidden>
+  <header class="bar tap" id="rbar" role="button" tabindex="0" aria-expanded="false" aria-label="Radar. Tap for controls">
+    <button class="pill" id="back" type="button">‹ Forecast</button>
+    <div class="loc">Hobart radar</div>
+    <div class="msg" id="rtitle">--</div>
+    <div class="ptime" id="ptime">--</div>
+    <button id="rrefresh" class="ibtn" type="button" aria-label="Refresh radar">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
+    <div class="chev"></div>
+    <div class="details rdetails" id="panel">
+      <div class="rgrid">
+        <div class="rcol">
+          <div class="player">
+            <button class="pbtn" id="pbtn" type="button" aria-label="Play"></button>
+            <input id="slider" type="range" min="0" max="0" value="0" step="1" aria-label="Radar frame">
+          </div>
+          <div class="group"><h3>Radar</h3><div class="chips" id="chipsRadar"></div></div>
+          <div class="group"><h3>Rainfall</h3><div class="chips" id="chipsRain"></div></div>
+        </div>
+        <div class="rcol">
+          <div class="group"><h3>Map features</h3><div class="chips" id="chipsLayers"></div>
+            <div class="acts" id="acts"><button type="button" data-act="hide">Hide all</button><button type="button" data-act="show">Show all</button><button type="button" data-act="reset">Reset</button></div>
+          </div>
+        </div>
       </div>
     </div>
+  </header>
+  <div class="rscroll" id="rscroll" hidden>
+    <div class="stagewrap" id="stagewrap"><div class="stage" id="stage"></div></div>
   </div>
+  <div class="rmap" id="rmap">
+    <div class="mlayer" id="mBase"></div>
+    <div class="mlayer" id="mData"></div>
+    <div class="mlayer" id="mLabels"></div>
+    <svg class="mrings" id="mRings"></svg>
+    <div class="mleg" id="mLeg" hidden></div>
+    <div class="mattr">© OpenStreetMap contributors © CARTO · Radar: Bureau of Meteorology</div>
+    <div class="mctl">
+      <button id="zIn" type="button" aria-label="Zoom in">+</button>
+      <button id="zOut" type="button" aria-label="Zoom out">−</button>
+      <button id="zHome" type="button" aria-label="Centre on Hobart radar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+      </button>
+    </div>
+    <div class="rmsg" id="tmsg" hidden></div>
+  </div>
+</div>
 
 <script>
-const proxy = "https://corsproxy.viciouskinid.workers.dev/?url=";
+const $ = id => document.getElementById(id);
+const TZ = 'Australia/Hobart';
+const PROXY = 'https://corsproxy.viciouskinid.workers.dev/?url=';
+const BOM = 'https://www.bom.gov.au';
+const API = 'https://api.bom.gov.au/apikey/v1/';
+const URLS = {
+  daily:  API + 'forecasts/daily/593/42?timezone=Australia%2FHobart',
+  hourly: API + 'forecasts/1hourly/593/42?timezone=Australia%2FHobart',
+  obs:    API + 'observations/latest/94029/atm/surf_air?include_qc_results=false',
+  astro:  API + 'forecasts/astro/147.327/-42.889',
+  tide:   API + 'forecasts/tidal/TAS_TP003'
+};
+const PICK = {
+  daily:  d => d.fcst?.daily,
+  hourly: d => d.fcst,
+  obs:    d => d.obs,
+  astro:  d => d.fcst?.daily,
+  tide:   d => d.fcst || d
+};
+const CORE = ['daily', 'hourly', 'obs'];
+const CACHE_KEY = 'hobart-wx-v2';
 
-const endpoints = [
-  ["Daily Forecast", "https://api.bom.gov.au/apikey/v1/forecasts/daily/593/42?timezone=Australia%2FHobart"],
-  ["1-Hourly Forecast", "https://api.bom.gov.au/apikey/v1/forecasts/1hourly/593/42?timezone=Australia%2FHobart"],
-  ["Latest Observation", "https://api.bom.gov.au/apikey/v1/observations/latest/94029/atm/surf_air?include_qc_results=false"],
-  ["Astro", "https://api.bom.gov.au/apikey/v1/forecasts/astro/147.327/-42.889"]
-];
-
-// Custom plugin to draw weather icons below day labels
-const dayIconPlugin = {
-  id: 'dayIcons',
-  afterDraw(chart, args, options) {
-    const { ctx, chartArea, scales } = chart;
-    const { bottom, left, right, top } = chartArea;
-    const xScale = scales.x;
-    
-    // Draw night time periods as light grey background bars
-    if (options.nightPeriods && options.nightPeriods.length > 0) {
-      ctx.save();
-      
-      options.nightPeriods.forEach((period) => {
-        const startX = xScale.getPixelForValue(period.start);
-        const endX = xScale.getPixelForValue(period.end);
-        
-        // Draw light grey background bar
-        ctx.fillStyle = 'rgba(156, 163, 175, 0.15)';
-        ctx.fillRect(startX, top, endX - startX, bottom - top);
-      });
-      
-      ctx.restore();
-    }
-    
-    // Draw night time periods as thick black line along bottom border
-    if (options.nightPeriods && options.nightPeriods.length > 0) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
-      ctx.lineWidth = 5;
-      ctx.lineCap = 'butt';
-      ctx.setLineDash([]); // Ensure solid line, no dashes
-      
-      // Store night period bounds for hover detection
-      chart._nightPeriods = [];
-      
-      options.nightPeriods.forEach((period) => {
-        const startX = xScale.getPixelForValue(period.start);
-        const endX = xScale.getPixelForValue(period.end);
-        
-        // Check if this period is being hovered
-        const isHovered = chart._hoveredNight === period;
-        
-        if (isHovered) {
-          ctx.strokeStyle = 'rgba(0, 0, 0, 1)';
-          ctx.lineWidth = 6;
-        } else {
-          ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
-          ctx.lineWidth = 5;
-        }
-        
-        ctx.beginPath();
-        ctx.moveTo(startX, bottom);
-        ctx.lineTo(endX, bottom);
-        ctx.stroke();
-        
-        // Store bounds
-        chart._nightPeriods.push({
-          startX: startX,
-          endX: endX,
-          y: bottom,
-          data: period
-        });
-      });
-      
-      ctx.restore();
-    }
-    
-    if (!options.icons || options.icons.length === 0) return;
-    
-    const iconSize = 18;
-    const rowMid = bottom + 4 + iconSize / 2; // one compact row: day  icon  max
-    const font = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-    options.icons.forEach((iconData) => {
-      if (!iconData.image || !iconData.image.complete) return;
-
-      const xPos = xScale.getPixelForValue(iconData.labelIndex);
-      const hasTemp = iconData.maxTemp !== undefined && iconData.maxTemp !== -Infinity;
-      const name = (iconData.name || '').slice(0, 3);
-      const temp = hasTemp ? `${Math.round(iconData.maxTemp)}°` : '';
-
-      ctx.save();
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      ctx.font = '600 11px ' + font;
-      const nameW = ctx.measureText(name).width;
-      ctx.font = 'bold 12px ' + font;
-      const tempW = ctx.measureText(temp).width;
-      const total = nameW + 4 + iconSize + (temp ? 3 + tempW : 0);
-      let x = xPos - total / 2;
-
-      ctx.font = '600 11px ' + font;
-      ctx.fillStyle = 'rgba(55, 65, 81, 1)';
-      ctx.fillText(name, x, rowMid);
-      x += nameW + 4;
-
-      ctx.globalAlpha = 0.9;
-      ctx.drawImage(iconData.image, x, rowMid - iconSize / 2, iconSize, iconSize);
-      ctx.globalAlpha = 1;
-      x += iconSize + 3;
-
-      if (temp) {
-        ctx.font = 'bold 12px ' + font;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
-        ctx.fillText(temp, x, rowMid);
-      }
-      ctx.restore();
-    });
-    
-    // Draw tide arrows
-    if (options.tides && options.tides.length > 0) {
-      const arrowY = bottom - 18; // Position tide arrows higher to avoid night period line
-      const arrowSize = 12;
-      
-      // Store arrow bounds for hover detection
-      chart._tideArrows = [];
-      
-      options.tides.forEach((tideData) => {
-        const xPos = xScale.getPixelForValue(tideData.index);
-        
-        // Check if mouse is hovering over this arrow
-        const isHovered = chart._hoveredTide === tideData;
-        
-        ctx.save();
-        ctx.fillStyle = isHovered ? 'rgba(59, 130, 246, 1)' : 'rgba(59, 130, 246, 0.8)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
-        ctx.lineWidth = 1.5;
-        
-        ctx.beginPath();
-        if (tideData.type === 'high') {
-          // Draw up arrow (triangle pointing up)
-          ctx.moveTo(xPos, arrowY - arrowSize / 2);
-          ctx.lineTo(xPos - arrowSize / 2, arrowY + arrowSize / 2);
-          ctx.lineTo(xPos + arrowSize / 2, arrowY + arrowSize / 2);
-        } else {
-          // Draw down arrow (triangle pointing down)
-          ctx.moveTo(xPos, arrowY + arrowSize / 2);
-          ctx.lineTo(xPos - arrowSize / 2, arrowY - arrowSize / 2);
-          ctx.lineTo(xPos + arrowSize / 2, arrowY - arrowSize / 2);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        
-        ctx.restore();
-        
-        // Store arrow bounds
-        chart._tideArrows.push({
-          x: xPos,
-          y: arrowY,
-          size: arrowSize,
-          data: tideData
-        });
-        
-        // Draw tooltip if hovered
-        if (isHovered) {
-          const time = new Date(tideData.time).toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-            timeZone: 'Australia/Hobart'
-          });
-          const text = `${tideData.type === 'high' ? 'High' : 'Low'} Tide - ${time}`;
-          
-          ctx.save();
-          ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-          const textWidth = ctx.measureText(text).width;
-          const padding = 8;
-          const tooltipX = xPos - textWidth / 2 - padding;
-          const tooltipY = arrowY - arrowSize - 30;
-          const tooltipWidth = textWidth + padding * 2;
-          const tooltipHeight = 24;
-          
-          // Draw tooltip background
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-          ctx.beginPath();
-          ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4);
-          ctx.fill();
-          
-          // Draw tooltip text
-          ctx.fillStyle = 'white';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(text, xPos, tooltipY + tooltipHeight / 2);
-          
-          ctx.restore();
-        }
-      });
-    }
-    
-    // Draw night period tooltips on top (after everything else)
-    if (options.nightPeriods && options.nightPeriods.length > 0) {
-      options.nightPeriods.forEach((period) => {
-        const isHovered = chart._hoveredNight === period;
-        
-        if (isHovered && period.sunset && period.sunrise) {
-          const startX = xScale.getPixelForValue(period.start);
-          const endX = xScale.getPixelForValue(period.end);
-          
-          const sunsetTime = period.sunset.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-            timeZone: 'Australia/Hobart'
-          });
-          const sunriseTime = period.sunrise.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-            timeZone: 'Australia/Hobart'
-          });
-          const text = `Night: ${sunsetTime} - ${sunriseTime}`;
-          const centerX = (startX + endX) / 2;
-          
-          ctx.save();
-          ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-          const textWidth = ctx.measureText(text).width;
-          const padding = 8;
-          const tooltipX = centerX - textWidth / 2 - padding;
-          const tooltipY = bottom - 45; // Position above tide arrows
-          const tooltipWidth = textWidth + padding * 2;
-          const tooltipHeight = 24;
-          
-          // Draw tooltip background
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-          ctx.beginPath();
-          ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4);
-          ctx.fill();
-          
-          // Draw tooltip text
-          ctx.fillStyle = 'white';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(text, centerX, tooltipY + tooltipHeight / 2);
-          
-          ctx.restore();
-        }
-      });
-    }
-  },
-  afterEvent(chart, args) {
-    const event = args.event;
-    if (event.type === 'mousemove' || event.type === 'mouseout') {
-      const tideArrows = chart._tideArrows || [];
-      const nightPeriods = chart._nightPeriods || [];
-      let needsRedraw = false;
-      let hoveredTide = null;
-      let hoveredNight = null;
-      
-      if (event.type === 'mousemove') {
-        const mouseX = event.x;
-        const mouseY = event.y;
-        
-        // Check if mouse is over any tide arrow
-        for (const arrow of tideArrows) {
-          const dx = mouseX - arrow.x;
-          const dy = mouseY - arrow.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          
-          if (distance < arrow.size) {
-            hoveredTide = arrow.data;
-            break;
-          }
-        }
-        
-        // Check if mouse is over any night period
-        for (const period of nightPeriods) {
-          if (mouseX >= period.startX && mouseX <= period.endX &&
-              Math.abs(mouseY - period.y) < 10) {
-            hoveredNight = period.data;
-            break;
-          }
-        }
-      }
-      
-      if (chart._hoveredTide !== hoveredTide || chart._hoveredNight !== hoveredNight) {
-        chart._hoveredTide = hoveredTide;
-        chart._hoveredNight = hoveredNight;
-        needsRedraw = true;
-      }
-      
-      if (needsRedraw) {
-        chart.draw();
-      }
-      
-      // Change cursor style
-      chart.canvas.style.cursor = (hoveredTide || hoveredNight) ? 'pointer' : 'default';
-    }
-  }
+/* BOM icon_code -> emoji. Codes 1, 3, 4 and 11 came from the original page; the rest follow BOM's published list. */
+const ICONS = {
+  1:'☀️', 2:'🌙', 3:'🌤️', 4:'☁️', 6:'🌫️', 8:'🌦️', 9:'💨', 10:'🌫️', 11:'🌦️',
+  12:'🌧️', 13:'🌫️', 14:'🥶', 15:'🌨️', 16:'⛈️', 17:'🌦️', 18:'🌧️'
 };
 
-// Register the plugin
-Chart.register(dayIconPlugin);
-
-const iconMap = {
-  1: 'sunny',
-  2: null,
-  3: 'mostly-sunny',
-  4: 'cloudy',
-  6: null,
-  8: null,
-  9: null,
-  10: null,
-  11: 'showers',
-  12: null,
-  13: null,
-  14: null,
-  15: null,
-  16: null,
-  17: null,
-  18: null
-};
-
-function getBomIconUrl(iconCode, isNight = false) {
-  const baseUrl = 'https://www.bom.gov.au/themes/custom/bom_theme/bom-react/dist/assets/@ausbom/weather-icons/';
-  let iconName = iconMap[iconCode];
-  
-  if (!iconName) return null;
-  
-  if (isNight) {
-    if (iconCode === 1) iconName = 'clear-night';
-    else if (iconCode === 2) iconName = 'mostly-clear-night';
-    else if (iconCode === 3) iconName = 'mostly-clear-night';
-  }
-  
-  return `${baseUrl}${iconName}.svg`;
+/* ---------- time helpers (always Hobart time) ---------- */
+const kF = new Intl.DateTimeFormat('en-AU', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', hourCycle:'h23', weekday:'short'});
+const tF = new Intl.DateTimeFormat('en-AU', {timeZone:TZ, hour:'numeric', minute:'2-digit', hour12:true});
+function lp(ms){
+  const o = {};
+  for (const p of kF.formatToParts(ms)) o[p.type] = p.value;
+  return {key:o.year + o.month + o.day, h:+o.hour, wd:o.weekday, d:+o.day};
 }
+const fT = ms => tF.format(ms).replace(/\s/g, ' ').toLowerCase();
+const n0 = v => v == null || isNaN(v) ? '--°' : Math.round(v) + '°';
+const n1 = v => v == null || isNaN(v) ? '--°' : v.toFixed(1) + '°';
+const mm = v => v >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
+const ext = (arr, f) => { const v = arr.filter(x => x != null && !isNaN(x)); return v.length ? f(...v) : null; };
 
-function renderCurrentObs(data, todayIconCode, astroData, dailyData) {
-  const temp = data.temp?.dry_bulb_1min_cel;
-  const feelsLike = data.temp?.apparent_1min_cel;
-  const humidity = data.temp?.rel_hum_percent;
-  const dewPoint = data.temp?.dew_pnt_1min_cel;
-  const windSpeed = data.wind?.speed_10m_mps ? (data.wind.speed_10m_mps * 1.94384).toFixed(1) : '--';
-  const windDir = data.wind?.dirn_10m_ord || '';
-  
-  const todayMax = dailyData?.[0]?.atm?.surf_air?.temp_max_cel;
-  const overnightMin = dailyData?.[1]?.atm?.surf_air?.temp_min_cel;
-  const tomorrowMax = dailyData?.[1]?.atm?.surf_air?.temp_max_cel;
-  const todayRainfall = dailyData?.[0]?.atm?.surf_air?.precip?.total_mm;
-  
-  let isNight = false;
-  let sunriseTime = '';
-  let sunsetTime = '';
-  if (astroData && astroData.length > 0) {
-    const now = new Date();
-    const todayAstro = astroData[0];
-    if (todayAstro.astro?.sunrise_utc && todayAstro.astro?.sunset_utc) {
-      const sunrise = new Date(todayAstro.astro.sunrise_utc);
-      const sunset = new Date(todayAstro.astro.sunset_utc);
-      isNight = now < sunrise || now > sunset;
-      sunriseTime = sunrise.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      sunsetTime = sunset.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    }
-  }
-  
-  const iconUrl = getBomIconUrl(todayIconCode || 4, isNight);
-  if (iconUrl) {
-    document.querySelector('.current-icon img').src = iconUrl;
-  }
-  
-  document.getElementById('sidebar-temp').textContent = `${temp?.toFixed(1) || '--'}°`;
-  document.getElementById('sidebar-condition').textContent = 'Current Conditions';
-  
-  document.getElementById('sidebar-details').innerHTML = `
-    <div class="detail-row">
-      <span class="detail-label">Feels Like</span>
-      <span class="detail-value">${feelsLike?.toFixed(1) || '--'}°</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Today's max</span>
-      <span class="detail-value">${todayMax?.toFixed(0) || '--'}°</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Today's rainfall</span>
-      <span class="detail-value">${todayRainfall > 0 ? todayRainfall.toFixed(1) + 'mm' : '0mm'}</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Wind</span>
-      <span class="detail-value">${windSpeed} kt ${windDir}</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Humidity</span>
-      <span class="detail-value">${humidity?.toFixed(0) || '--'}%</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Dew Point</span>
-      <span class="detail-value">${dewPoint?.toFixed(1) || '--'}°</span>
-    </div>
-    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
-      <span class="detail-label">Overnight min</span>
-      <span class="detail-value">${overnightMin?.toFixed(0) || '--'}°</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Tomorrow's max</span>
-      <span class="detail-value">${tomorrowMax?.toFixed(0) || '--'}°</span>
-    </div>
-    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
-      <span class="detail-label">Sunrise</span>
-      <span class="detail-value">${sunriseTime || '--'}</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Sunset</span>
-      <span class="detail-value">${sunsetTime || '--'}</span>
-    </div>
-    <div class="detail-row" style="border-top: 1px solid rgba(255, 255, 255, 0.2); padding-top: 12px; margin-top: 12px;">
-      <span class="detail-label">Next high tide</span>
-      <span class="detail-value" id="next-high-tide">--</span>
-    </div>
-    <div class="detail-row">
-      <span class="detail-label">Next low tide</span>
-      <span class="detail-value" id="next-low-tide">--</span>
-    </div>
-  `;
-}
-
-function renderTideInfo(tideData) {
-  const now = new Date();
-  const dailyForecasts = tideData?.daily || [];
-  
-  let nextHigh = null;
-  let nextLow = null;
-  
-  for (const day of dailyForecasts) {
-    const tides = day.tide || [];
-    for (const tide of tides) {
-      const tideTime = new Date(tide.datetime_utc);
-      if (tideTime > now) {
-        if (tide.type === 'high' && !nextHigh) {
-          nextHigh = tideTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        } else if (tide.type === 'low' && !nextLow) {
-          nextLow = tideTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        }
-        if (nextHigh && nextLow) break;
-      }
-    }
-    if (nextHigh && nextLow) break;
-  }
-  
-  if (nextHigh) {
-    document.getElementById('next-high-tide').textContent = nextHigh;
-  }
-  if (nextLow) {
-    document.getElementById('next-low-tide').textContent = nextLow;
-  }
-}
-
-function renderDailyCharts(dailyData, hourlyData) {
-  if (!hourlyData) return;
-  
-  const days = dailyData.slice(0, 7);
-  
-  // Collect all hourly data points
-  const labels = [];
-  const temps = [];
-  const feelsLike = [];
-  const humidity = [];
-  const rainfall = [];
-  const dayBoundaries = []; // Track where each day starts
-  const minMaxPoints = []; // Track min/max temps with day index
-  const dayIcons = []; // Track icons for each day
-  const tideMarkers = []; // Track tide times and types
-  const nightPeriods = []; // Track night time periods
-  
-  // First pass: collect all data
-  const allHourlyData = [];
-  for (let dayIdx = 0; dayIdx < Math.min(days.length, hourlyData.length); dayIdx++) {
-    const hourlyArray = hourlyData[dayIdx]['1hourly'] || [];
-    const date = new Date(days[dayIdx].date_utc);
-    const dayName = dayIdx === 0 ? 'Today' : dayIdx === 1 ? 'Tomorrow' : 
-                    date.toLocaleDateString('en-AU', { weekday: 'short', timeZone: 'Australia/Hobart' });
-    
-    // Mark day boundary
-    dayBoundaries.push({ index: labels.length, name: dayName });
-    
-    // Get icon for this day
-    const iconCode = days[dayIdx]?.atm?.surf_air?.weather?.icon_code || 4;
-    const iconUrl = getBomIconUrl(iconCode, false);
-    
-    hourlyArray.forEach((hour) => {
-      const hourDate = new Date(hour.time_utc);
-      const hourLabel = hourDate.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit', 
-        hour12: true,
-        timeZone: 'Australia/Hobart'
-      });
-      
-      labels.push(hourLabel);
-      
-      const temp = hour.atm?.surf_air?.temp_cel || null;
-      const feels = hour.atm?.surf_air?.temp_apparent_cel || null;
-      const hum = hour.atm?.surf_air?.hum_relative_percent || null;
-      const rain = hour.atm?.surf_air?.precip?.total_mm || 0;
-      
-      temps.push(temp);
-      feelsLike.push(feels);
-      humidity.push(hum);
-      rainfall.push(rain);
-      
-      allHourlyData.push({ temp, hourDate });
-    });
-    
-    // Store icon data for this day
-    if (iconUrl) {
-      dayIcons.push({
-        iconCode: iconCode,
-        url: iconUrl,
-        dayIdx: dayIdx
-      });
-    }
-  }
-  
-  // Build night periods from astro data
-  if (window.astroData) {
-    window.astroData.forEach((astroDay, dayIdx) => {
-      if (astroDay.astro?.sunrise_utc && astroDay.astro?.sunset_utc) {
-        const sunrise = new Date(astroDay.astro.sunrise_utc);
-        const sunset = new Date(astroDay.astro.sunset_utc);
-        
-        let periodStart = null;
-        let periodEnd = null;
-        
-        // Find the first hour after sunset
-        for (let idx = 0; idx < allHourlyData.length; idx++) {
-          const hourTime = allHourlyData[idx].hourDate;
-          
-          if (periodStart === null && hourTime >= sunset) {
-            periodStart = idx;
-          }
-          
-          // Find where this night period ends (at next sunrise)
-          if (periodStart !== null && hourTime >= sunrise && sunrise > sunset) {
-            periodEnd = idx - 1;
-            break;
-          }
-        }
-        
-        // If we started a night period (after sunset) but haven't found sunrise yet
-        // Look for sunrise in next day
-        if (periodStart !== null && periodEnd === null && dayIdx < window.astroData.length - 1) {
-          const nextDaySunrise = window.astroData[dayIdx + 1]?.astro?.sunrise_utc;
-          if (nextDaySunrise) {
-            const nextSunrise = new Date(nextDaySunrise);
-            for (let idx = periodStart; idx < allHourlyData.length; idx++) {
-              const hourTime = allHourlyData[idx].hourDate;
-              if (hourTime >= nextSunrise) {
-                periodEnd = idx - 1;
-                break;
-              }
-            }
-          }
-        }
-        
-        // If still no end, extend to end of data
-        if (periodStart !== null && periodEnd === null) {
-          periodEnd = allHourlyData.length - 1;
-        }
-        
-        if (periodStart !== null && periodEnd !== null && periodEnd >= periodStart) {
-          nightPeriods.push({
-            start: periodStart,
-            end: periodEnd,
-            sunset: sunset,
-            sunrise: sunrise
-          });
-        }
-      }
-    });
-  }
-  
-  // Second pass: find min/max for each midday-to-midday period
-  for (let i = 0; i < dayBoundaries.length; i++) {
-    const dayStart = dayBoundaries[i].index;
-    const dayEnd = i < dayBoundaries.length - 1 ? dayBoundaries[i + 1].index : labels.length;
-    const dayMidpoint = Math.floor((dayStart + dayEnd) / 2);
-    
-    // Find max in this day's data
-    let dayMaxTemp = -Infinity;
-    let maxIndex = -1;
-    for (let j = dayStart; j < dayEnd; j++) {
-      if (temps[j] !== null && temps[j] > dayMaxTemp) {
-        dayMaxTemp = temps[j];
-        maxIndex = j;
-      }
-    }
-    
-    // Find min from this midpoint to next midpoint
-    const nextMidpoint = i < dayBoundaries.length - 1 ? 
-                         Math.floor((dayBoundaries[i + 1].index + (i + 2 < dayBoundaries.length ? dayBoundaries[i + 2].index : labels.length)) / 2) :
-                         labels.length;
-    
-    let minTemp = Infinity;
-    let minIndex = -1;
-    for (let j = dayMidpoint; j < nextMidpoint && j < temps.length; j++) {
-      if (temps[j] !== null && temps[j] < minTemp) {
-        minTemp = temps[j];
-        minIndex = j;
-      }
-    }
-    
-    if (maxIndex >= 0) minMaxPoints.push({ index: maxIndex, type: 'max', value: dayMaxTemp });
-    if (minIndex >= 0) minMaxPoints.push({ index: minIndex, type: 'min', value: minTemp });
-    
-    // Store max temp with the corresponding day icon
-    if (i < dayIcons.length) {
-      // For today, use the daily forecast max temp instead of calculated from hourly
-      if (i === 0 && days[0]?.atm?.surf_air?.temp_max_cel) {
-        dayIcons[i].maxTemp = days[0].atm.surf_air.temp_max_cel;
-      } else {
-        dayIcons[i].maxTemp = dayMaxTemp;
-      }
-    }
-  }
-  
-  // Match tide times to hour indices
-  if (window.tideData && window.tideData.daily) {
-    window.tideData.daily.forEach((dayTides) => {
-      if (dayTides.tide) {
-        dayTides.tide.forEach((tide) => {
-          const tideTime = new Date(tide.datetime_utc);
-          
-          // Find the closest hour index
-          allHourlyData.forEach((hourData, idx) => {
-            const timeDiff = Math.abs(hourData.hourDate - tideTime);
-            // If within 30 minutes of this hour
-            if (timeDiff < 30 * 60 * 1000) {
-              tideMarkers.push({
-                index: idx,
-                type: tide.type,
-                time: tideTime
-              });
-            }
-          });
-        });
-      }
-    });
-  }
-  
-  // Preload icon images with proxy
-  const iconImages = [];
-  const imagePromises = [];
-  
-  dayIcons.forEach((iconData, idx) => {
-    if (idx < dayBoundaries.length) {
-      const dayStart = dayBoundaries[idx].index;
-      const dayEnd = idx < dayBoundaries.length - 1 ? dayBoundaries[idx + 1].index : labels.length;
-      const midpoint = Math.floor((dayStart + dayEnd) / 2);
-      
-      // Use proxy for the icon URL
-      const proxiedUrl = proxy + encodeURIComponent(iconData.url);
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = proxiedUrl;
-      
-      imagePromises.push(
-        new Promise((resolve) => {
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-        })
-      );
-      
-      iconImages.push({
-        image: img,
-        labelIndex: midpoint,
-        maxTemp: iconData.maxTemp,
-        name: dayBoundaries[idx].name
-      });
-    }
-  });
-  
-  // Create custom x-axis labels (only show day names at midday/center of each day)
-  const xAxisLabels = labels.map((label, idx) => {
-    // Find which day this hour belongs to
-    let dayIdx = -1;
-    for (let i = 0; i < dayBoundaries.length; i++) {
-      if (idx >= dayBoundaries[i].index) {
-        dayIdx = i;
-      }
-    }
-    
-    if (dayIdx >= 0) {
-      const dayStart = dayBoundaries[dayIdx].index;
-      const dayEnd = dayIdx < dayBoundaries.length - 1 ? dayBoundaries[dayIdx + 1].index : labels.length;
-      const dayMidpoint = Math.floor((dayStart + dayEnd) / 2);
-      
-      if (idx === dayMidpoint) {
-        return dayBoundaries[dayIdx].name;
-      }
-    }
-    
-    return '';
-  });
-  
-  // Wait for all images to load before creating chart
-  Promise.all(imagePromises).then(() => {
-    // Temperature chart
-    const tempCtx = document.getElementById('temp-chart').getContext('2d');
-    new Chart(tempCtx, {
-    type: 'line',
-    data: {
-      labels: xAxisLabels,
-      datasets: [
-        {
-          label: 'Temperature (°C)',
-          data: temps,
-          borderColor: 'rgba(239, 68, 68, 1)',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          borderWidth: 2,
-          pointRadius: (context) => {
-            // Highlight min/max points
-            const isMinMax = minMaxPoints.some(p => p.index === context.dataIndex);
-            return isMinMax ? 5 : 0;
-          },
-          pointHoverRadius: 8,
-          pointBackgroundColor: (context) => {
-            const minMax = minMaxPoints.find(p => p.index === context.dataIndex);
-            if (minMax) {
-              return minMax.type === 'max' ? 'rgba(239, 68, 68, 1)' : 'rgba(59, 130, 246, 1)';
-            }
-            return 'rgba(239, 68, 68, 0.6)';
-          },
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          tension: 0.4,
-          fill: true,
-          spanGaps: true,
-          yAxisID: 'y'
-        },
-        {
-          label: 'Feels Like (°C)',
-          data: feelsLike,
-          borderColor: 'rgba(251, 146, 60, 0.8)',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          borderDash: [5, 5],
-          pointRadius: 0,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(251, 146, 60, 0.8)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 1,
-          tension: 0.4,
-          fill: false,
-          spanGaps: true,
-          yAxisID: 'y'
-        },
-        {
-          label: 'Humidity (%)',
-          hidden: true,
-          data: humidity,
-          borderColor: 'rgba(156, 163, 175, 0.6)',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          borderDash: [5, 5],
-          pointRadius: 0,
-          pointHoverRadius: 6,
-          pointBackgroundColor: 'rgba(156, 163, 175, 0.6)',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 1,
-          tension: 0.4,
-          fill: false,
-          spanGaps: true,
-          yAxisID: 'y2'
-        },
-        {
-          label: 'Rainfall (mm)',
-          data: rainfall,
-          type: 'bar',
-          backgroundColor: 'rgba(34, 197, 94, 0.6)',
-          borderColor: 'rgba(34, 197, 94, 1)',
-          borderWidth: 1,
-          borderRadius: 2,
-          yAxisID: 'y1'
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      layout: {
-        padding: {
-          top: 0,
-          bottom: 26 // Add space for icons and temperature text
-        }
-      },
-      plugins: {
-        dayIcons: {
-          icons: iconImages,
-          tides: tideMarkers,
-          nightPeriods: nightPeriods
-        },
-        legend: {
-          display: false,
-          position: 'top',
-          labels: {
-            padding: 15,
-            font: { size: 11 },
-            usePointStyle: true
-          }
-        },
-        tooltip: {
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          padding: 8,
-          titleFont: { size: 12 },
-          bodyFont: { size: 12 },
-          callbacks: {
-            title: function(context) {
-              const idx = context[0].dataIndex;
-              return labels[idx];
-            },
-            label: function(context) {
-              if (context.dataset.label === 'Rainfall (mm)') {
-                return 'Rainfall: ' + context.parsed.y.toFixed(1) + 'mm';
-              } else if (context.dataset.label === 'Humidity (%)') {
-                return 'Humidity: ' + context.parsed.y.toFixed(0) + '%';
-              } else if (context.dataset.label === 'Feels Like (°C)') {
-                return 'Feels Like: ' + context.parsed.y.toFixed(1) + '°C';
-              }
-              
-              // Check if this is a min/max point
-              const minMax = minMaxPoints.find(p => p.index === context.dataIndex);
-              if (minMax) {
-                const label = minMax.type === 'max' ? 'Max' : 'Overnight Min';
-                return label + ' Temp: ' + context.parsed.y.toFixed(1) + '°C';
-              }
-              
-              return 'Temp: ' + context.parsed.y.toFixed(1) + '°C';
-            }
-          }
-        }
-      },
-      scales: {
-        y: {
-          bounds: 'data',
-          grace: '4%',
-          beginAtZero: false,
-          position: 'left',
-          grid: {
-            color: 'rgba(0, 0, 0, 0.1)'
-          },
-          ticks: {
-            font: { size: 11 },
-            callback: function(value) {
-              return Number(value).toFixed(1) + '°';
-            }
-          },
-          title: {
-            display: false,
-            text: 'Temperature (°C)',
-            font: { size: 14, weight: 'bold' },
-            color: 'rgba(239, 68, 68, 1)'
-          }
-        },
-        y1: {
-          beginAtZero: true,
-          position: 'right',
-          grid: {
-            drawOnChartArea: false
-          },
-          ticks: {
-            font: { size: 11 },
-            callback: function(value) {
-              return value + 'mm';
-            }
-          },
-          title: {
-            display: false,
-            text: 'Rainfall (mm)',
-            font: { size: 14, weight: 'bold' },
-            color: 'rgba(34, 197, 94, 1)'
-          }
-        },
-        y2: {
-          beginAtZero: true,
-          max: 100,
-          position: 'right',
-          grid: {
-            drawOnChartArea: false
-          },
-          ticks: {
-            font: { size: 11 },
-            callback: function(value) {
-              return value + '%';
-            }
-          },
-          title: {
-            display: false,
-            text: 'Humidity (%)',
-            font: { size: 14, weight: 'bold' },
-            color: 'rgba(156, 163, 175, 0.8)'
-          }
-        },
-        x: {
-          grid: {
-            display: false
-          },
-          ticks: {
-            display: false,
-            font: { size: 11 },
-            maxRotation: 0,
-            autoSkip: false
-          }
-        }
-      }
-    }
-  });
-  });
-}
-
-async function loadData() {
+/* ---------- network (via your proxy) ---------- */
+async function proxy(url, as){
+  const c = new AbortController(), to = setTimeout(() => c.abort(), 15000);
   try {
-    let dailyData = null;
-    let hourlyData = null;
-    let obsData = null;
-    let astroData = null;
-    let tideData = null;
-    
-    for (const [title, url] of endpoints) {
-      const r = await fetch(proxy + encodeURIComponent(url));
-      const j = await r.json();
-      const data = j.data ?? j;
-      
-      if (title === "Daily Forecast") {
-        dailyData = data.fcst?.daily;
-      } else if (title === "1-Hourly Forecast") {
-        hourlyData = data.fcst;
-      } else if (title === "Latest Observation") {
-        obsData = data.obs;
-      } else if (title === "Astro") {
-        astroData = data.fcst?.daily;
-      }
-    }
-    
-    try {
-      const tideUrl = 'https://api.bom.gov.au/apikey/v1/forecasts/tidal/TAS_TP003';
-      const tideResponse = await fetch(proxy + encodeURIComponent(tideUrl));
-      const tideJson = await tideResponse.json();
-      tideData = tideJson.fcst || tideJson.data?.fcst || tideJson;
-    } catch (e) {
-      console.error('Error fetching tide data:', e);
-    }
-    
-    if (obsData && dailyData && astroData) {
-      const todayIconCode = dailyData[0]?.atm?.surf_air?.weather?.icon_code;
-      renderCurrentObs(obsData, todayIconCode, astroData, dailyData);
-      window.astroData = astroData; // Store for chart rendering
-    }
-    
-    if (tideData) {
-      renderTideInfo(tideData);
-      window.tideData = tideData; // Store for chart rendering
-    }
-    
-    if (dailyData) {
-      renderDailyCharts(dailyData, hourlyData);
-    }
-    
-  } catch (e) {
-    console.error('Error loading data:', e);
-    document.querySelector('.main-container').innerHTML = '<p style="color: red; padding: 20px;">Error loading weather data</p>';
-  }
+    const r = await fetch(PROXY + encodeURIComponent(url), {signal:c.signal});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (as === 'text') return await r.text();
+    const j = await r.json();
+    return j.data ?? j;
+  } finally { clearTimeout(to); }
 }
 
-loadData();
+/* =====================================================================
+   FORECAST
+   ===================================================================== */
+const S = {daily:null, hourly:null, obs:null, astro:null, tide:null, at:0};
+let hours = [], nights = [], tides = [], G = null, sel = null, selTimer = 0, emptyMsg = 'Loading forecast…';
 
-(function(){
-  const det = document.getElementById('sidebar-details');
-  new MutationObserver(() => {
-    const v = det.querySelectorAll('.detail-value');
-    if (v[0]) document.getElementById('hdr-feels').textContent = v[0].textContent.trim();
-    if (v[1]) document.getElementById('hdr-max').textContent = v[1].textContent.trim();
-  }).observe(det, { childList: true });
+try {
+  const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+  if (c) Object.assign(S, c);
+} catch (e) {}
+
+function derive(){
+  const now = Date.now(), t0 = Math.floor(now / 36e5) * 36e5, m = new Map();
+  const arr = Array.isArray(S.hourly) ? S.hourly : (S.hourly ? [S.hourly] : []);
+  for (const d of arr) for (const h of (d['1hourly'] || [])) {
+    const t = Date.parse(h.time_utc), s = h.atm?.surf_air || {};
+    if (!isNaN(t) && t >= t0) m.set(t, {t, temp:s.temp_cel ?? null, feels:s.temp_apparent_cel ?? null, hum:s.hum_relative_percent ?? null, rain:s.precip?.total_mm ?? 0});
+  }
+  hours = [...m.values()].sort((a, b) => a.t - b.t).slice(0, 168);
+  hours.forEach(h => h._p = lp(h.t));
+
+  const A = (S.astro || []).map(a => ({r:Date.parse(a.astro?.sunrise_utc), s:Date.parse(a.astro?.sunset_utc)})).filter(a => !isNaN(a.r) && !isNaN(a.s));
+  nights = [];
+  if (A.length) {
+    nights.push([-Infinity, A[0].r]);
+    for (let i = 0; i < A.length - 1; i++) nights.push([A[i].s, A[i + 1].r]);
+    nights.push([A[A.length - 1].s, Infinity]);
+  }
+  tides = [];
+  for (const d of (S.tide?.daily || [])) for (const x of (d.tide || [])) {
+    const t = Date.parse(x.datetime_utc);
+    if (!isNaN(t)) tides.push({t, type:x.type});
+  }
+  tides.sort((a, b) => a.t - b.t);
+}
+const isNight = t => nights.some(([a, b]) => t >= a && t < b);
+
+function renderBar(){
+  const now = Date.now(), o = S.obs || {};
+  const d0 = S.daily?.[0]?.atm?.surf_air, d1 = S.daily?.[1]?.atm?.surf_air;
+  const todayKey = lp(now).key;
+  const cur = o.temp?.dry_bulb_1min_cel ?? hours[0]?.temp;
+  const feels = o.temp?.apparent_1min_cel ?? hours[0]?.feels;
+  const hi = d0?.temp_max_cel ?? ext(hours.filter(h => h._p.key === todayKey).map(h => h.temp), Math.max);
+  const lo = d1?.temp_min_cel ?? d0?.temp_min_cel;
+  const code = d0?.weather?.icon_code;
+  let emoji = ICONS[code] || '';
+  if (isNight(now) && [1, 2, 3].includes(code)) emoji = '🌙';
+
+  $('temp').textContent = n1(cur);
+  $('ico').textContent = emoji;
+  $('feels').textContent = n0(feels);
+  $('hi').textContent = n0(hi);
+  $('lo').textContent = n0(lo);
+  $('upd').textContent = S.at ? 'Updated ' + fT(S.at) + (S.stale ? ' · offline, showing saved data' : '') : 'Not updated yet';
+
+  const next = hours.filter(h => h.t < now + 24 * 36e5);
+  const wet = next.filter(h => h.rain >= 0.1);
+  const total = next.reduce((a, h) => a + h.rain, 0);
+  let head = '';
+  if (!next.length) head = emptyMsg;
+  else if (!wet.length) head = 'Dry for the next 24 hours';
+  else head = (wet[0].t <= now + 36e5 ? 'Rain this hour' : 'Rain from ' + fT(wet[0].t)) + ' · ' + mm(total) + ' mm in 24 h';
+  $('msg').textContent = head;
+}
+
+function renderDetails(){
+  const o = S.obs || {}, now = Date.now();
+  const d0 = S.daily?.[0]?.atm?.surf_air, a0 = S.astro?.[0]?.astro;
+  const kt = o.wind?.speed_10m_mps != null ? Math.round(o.wind.speed_10m_mps * 1.94384) : null;
+  const todayKey = lp(now).key;
+  const rainToday = d0?.precip?.total_mm ?? hours.filter(h => h._p.key === todayKey).reduce((a, h) => a + h.rain, 0);
+  const hiT = tides.find(t => t.t > now && t.type === 'high');
+  const loT = tides.find(t => t.t > now && t.type === 'low');
+  const sun = k => a0?.[k] ? fT(Date.parse(a0[k])) : '--';
+  const cells = [
+    ['Wind', kt == null ? '--' : kt + ' kt ' + (o.wind?.dirn_10m_ord || '')],
+    ['Humidity', o.temp?.rel_hum_percent != null ? Math.round(o.temp.rel_hum_percent) + '%' : '--'],
+    ['Dew point', n1(o.temp?.dew_pnt_1min_cel)],
+    ['Rain today', mm(rainToday || 0) + ' mm'],
+    ['Sunrise', sun('sunrise_utc')],
+    ['Sunset', sun('sunset_utc')],
+    ['Next high tide', hiT ? fT(hiT.t) : '--'],
+    ['Next low tide', loT ? fT(loT.t) : '--']
+  ];
+  $('grid').innerHTML = cells.map(([l, v]) => `<div class="cell"><small>${l}</small><b>${v}</b></div>`).join('');
+}
+
+/* ---------- chart (fills the screen, no scrolling) ---------- */
+function curve(p){
+  const f = v => v.toFixed(1);
+  let d = 'M' + f(p[0][0]) + ',' + f(p[0][1]);
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+    d += 'C' + f(p1[0] + (p2[0] - p0[0]) / 6) + ',' + f(p1[1] + (p2[1] - p0[1]) / 6) + ' '
+       + f(p2[0] - (p3[0] - p1[0]) / 6) + ',' + f(p2[1] - (p3[1] - p1[1]) / 6) + ' '
+       + f(p2[0]) + ',' + f(p2[1]);
+  }
+  return d;
+}
+
+function renderChart(){
+  const wrap = $('chartwrap'), svg = $('chart');
+  const w = Math.floor(wrap.clientWidth), h = Math.floor(wrap.clientHeight);
+  if (w < 60 || h < 60) return;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  if (hours.length < 2) {
+    svg.innerHTML = `<text class="hlbl" x="${w / 2}" y="${h / 2}" text-anchor="middle" style="font-size:14px">${emptyMsg}</text>`;
+    G = null; return;
+  }
+
+  /* vertical layout: every row sits tight against the next */
+  const padL = 36, padR = 12, top = 2;
+  const dayY = h - 8, nightBot = h - 19, hourY = h - 23, tideY = h - 38, rainBase = h - 45;
+  const hasRain = hours.some(x => x.rain > 0.04);
+  const lane = hasRain ? Math.min(44, (rainBase - top) * 0.2) : 0;
+  const pT = top + 19, pB = rainBase - lane - (hasRain ? 8 : 0) - 20;
+
+  const t0 = hours[0].t, tN = hours[hours.length - 1].t;
+  const spanH = (tN - t0) / 36e5, pxh = (w - padL - padR) / spanH;
+  const X = t => padL + (t - t0) / (tN - t0) * (w - padL - padR);
+
+  const vals = hours.flatMap(x => [x.temp, x.feels]).filter(v => v != null);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi - lo < 4) { const m = (hi + lo) / 2; lo = m - 2; hi = m + 2; }
+  const Y = v => pB - (v - lo) / (hi - lo) * (pB - pT);
+  const rmax = Math.max(2, ...hours.map(x => x.rain));
+  const f = v => v.toFixed(1);
+
+  let s = `<defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--temp)" stop-opacity=".25"/><stop offset="1" style="stop-color:var(--temp)" stop-opacity="0"/></linearGradient></defs>`;
+
+  for (const [a, b] of nights) {
+    const x0 = Math.max(X(a), padL), x1 = Math.min(X(b), w - padR);
+    if (x1 > x0) s += `<rect class="night" x="${f(x0)}" y="${top}" width="${f(x1 - x0)}" height="${nightBot - top}"/>`;
+  }
+
+  const gstep = [1, 2, 5, 10].find(st => (hi - lo) / st <= 5) || 10;
+  for (let v = Math.ceil(lo / gstep) * gstep; v <= hi; v += gstep) {
+    const y = Y(v);
+    s += `<line class="grid-l" x1="${padL}" x2="${w - padR}" y1="${f(y)}" y2="${f(y)}"/><text class="glbl" x="${padL - 6}" y="${f(y + 4)}" text-anchor="end">${v}°</text>`;
+  }
+
+  const step = [1, 2, 3, 6, 12].find(st => st * pxh >= 40) || 12;
+  hours.forEach((x, i) => {
+    if (i > 0 && x._p.h === 0) {
+      const px = X(x.t);
+      s += `<line class="dline" x1="${f(px)}" x2="${f(px)}" y1="${top}" y2="${nightBot}"/>`;
+    }
+    if (x._p.h % step === 0 && X(x.t) > padL + 8 && X(x.t) < w - padR - 8) {
+      const hh = x._p.h;
+      s += `<text class="hlbl" x="${f(X(x.t))}" y="${hourY}" text-anchor="middle">${hh % 12 || 12}${hh < 12 ? 'a' : 'p'}</text>`;
+    }
+  });
+
+  /* rain lane (only when there is rain to show) */
+  if (hasRain) {
+    s += `<line class="grid-l" x1="${padL}" x2="${w - padR}" y1="${rainBase}" y2="${rainBase}"/>`;
+    s += `<text class="rlbl" x="${padL - 6}" y="${f(rainBase - lane + 9)}" text-anchor="end">${mm(rmax)}</text><text class="rlbl" x="${padL - 6}" y="${f(rainBase - 1)}" text-anchor="end">mm</text>`;
+    const bw = Math.max(1.5, pxh - 1);
+    hours.forEach(x => {
+      if (x.rain > 0.04) {
+        const bh = Math.max(2, x.rain / rmax * lane);
+        s += `<rect class="rain" x="${f(X(x.t) - bw / 2)}" y="${f(rainBase - bh)}" width="${f(bw)}" height="${f(bh)}"/>`;
+      }
+    });
+  }
+
+  const fp = hours.filter(x => x.feels != null).map(x => [X(x.t), Y(x.feels)]);
+  const tp = hours.filter(x => x.temp != null).map(x => [X(x.t), Y(x.temp)]);
+  if (fp.length > 1) s += `<path class="feels" d="${curve(fp)}"/>`;
+  if (tp.length > 1) {
+    const d = curve(tp);
+    s += `<path class="area" d="${d}L${f(tp[tp.length - 1][0])},${f(pB)}L${f(tp[0][0])},${f(pB)}Z"/><path class="temp-l" d="${d}"/>`;
+  }
+
+  const dailyByKey = {};
+  (S.daily || []).forEach(d => { dailyByKey[lp(Date.parse(d.date_utc)).key] = d.atm?.surf_air || {}; });
+  const now = Date.now(), todayKey = lp(now).key, tomKey = lp(now + 864e5).key;
+  const groups = [];
+  hours.forEach((x, i) => {
+    const g = groups[groups.length - 1];
+    if (g && g.key === x._p.key) g.ix.push(i); else groups.push({key:x._p.key, p:x._p, ix:[i]});
+  });
+  s += `<line class="grid-l" x1="0" x2="${w}" y1="${nightBot}" y2="${nightBot}"/>`;
+  groups.forEach(g => {
+    const first = hours[g.ix[0]], last = hours[g.ix[g.ix.length - 1]];
+    const segW = X(last.t) - X(first.t) + pxh;
+    const cx = (X(first.t) + X(last.t)) / 2;
+    const dd = dailyByKey[g.key] || {};
+    const dayHi = dd.temp_max_cel ?? ext(g.ix.map(i => hours[i].temp), Math.max);
+    if (segW >= 56) {
+      const nm = g.key === todayKey && segW > 90 ? 'Today' : g.key === tomKey && segW > 120 ? 'Tomorrow' : g.p.wd;
+      const em = ICONS[dd.weather?.icon_code] || '';
+      s += `<text x="${f(cx)}" y="${dayY}" text-anchor="middle"><tspan class="dname">${nm}</tspan>`
+         + (em ? `<tspan dx="6" style="font-size:15px">${em}</tspan>` : '')
+         + (dayHi != null ? `<tspan dx="6" class="dmax">${Math.round(dayHi)}°</tspan>` : '') + `</text>`;
+    }
+  });
+
+  /* highs = daytime (6 am to 9 pm); lows = overnight (6 pm to 9 am), one per night, the way BOM defines them */
+  const runs = inWin => {
+    const out = []; let cur = null;
+    hours.forEach((x, i) => {
+      if (x.temp != null && inWin(x._p.h)) { if (cur) cur.push(i); else { cur = [i]; out.push(cur); } } else cur = null;
+    });
+    return out;
+  };
+  const mark = (ix, up) => {
+    const best = ix.reduce((a, b) => (up ? hours[b].temp > hours[a].temp : hours[b].temp < hours[a].temp) ? b : a);
+    const x = hours[best], px = X(x.t), lx = Math.min(Math.max(px, padL + 12), w - padR - 12), y = Y(x.temp);
+    s += `<circle class="dot ${up ? 'mx' : 'mn'}" cx="${f(px)}" cy="${f(y)}" r="3.5"/>`
+       + `<text class="ext" x="${f(lx)}" y="${f(up ? y - 8 : y + 17)}" text-anchor="middle">${Math.round(x.temp)}°</text>`;
+  };
+  const complete = (ix, endH) => ix[ix.length - 1] !== hours.length - 1 || hours[hours.length - 1]._p.h === endH; /* skip a day/night the forecast cuts off */
+  runs(hh => hh >= 6 && hh < 21).forEach(ix => { if (ix.length >= 4 && complete(ix, 20)) mark(ix, true); });
+  runs(hh => hh >= 18 || hh < 9).forEach(ix => { if (ix.length >= 4 && complete(ix, 8)) mark(ix, false); });
+
+  tides.forEach(td => {
+    if (td.t < t0 || td.t > tN) return;
+    const px = X(td.t);
+    s += td.type === 'high'
+      ? `<path class="tide" d="M${f(px)},${tideY - 6}L${f(px - 5)},${tideY + 4}L${f(px + 5)},${tideY + 4}Z"/>`
+      : `<path class="tide" d="M${f(px)},${tideY + 4}L${f(px - 5)},${tideY - 6}L${f(px + 5)},${tideY - 6}Z"/>`;
+  });
+
+  s += `<circle class="nowd" cx="${f(X(hours[0].t))}" cy="${f(hours[0].temp != null ? Y(hours[0].temp) : pB)}" r="4"/>`;
+  s += `<g id="cur" visibility="hidden"><line class="curl" x1="0" x2="0" y1="${top}" y2="${nightBot}"/><circle class="curd" cx="0" cy="${f(pB)}" r="5"/></g>`;
+  s += `<g id="tip" class="tip" visibility="hidden"></g>`;
+
+  svg.innerHTML = s;
+  G = {X, Y, w, h, t0, tN, padL, padR, pB, todayKey, tomKey};
+  select(sel);
+}
+
+function select(i){
+  const cur = $('cur'), tip = $('tip');
+  if (!G || !cur || !tip) return;
+  if (i == null || !hours[i]) { sel = null; cur.setAttribute('visibility', 'hidden'); tip.setAttribute('visibility', 'hidden'); return; }
+  sel = i;
+  const x = hours[i], px = G.X(x.t);
+  const day = x._p.key === G.todayKey ? 'Today' : x._p.key === G.tomKey ? 'Tomorrow' : x._p.wd + ' ' + x._p.d;
+  const near = tides.find(td => Math.abs(td.t - x.t) <= 45 * 60e3);
+  const lines = [
+    `<text class="tt" x="10" y="17">${i === 0 ? 'Now' : day + ' · ' + fT(x.t)}</text>`,
+    `<text class="tm" x="10" y="37">${n1(x.temp)}<tspan style="font-size:11.5px;font-weight:400" dx="6">feels ${n1(x.feels)}</tspan></text>`,
+    `<text x="10" y="54">${x.rain > 0.04 ? mm(x.rain) + ' mm rain' : 'No rain'} · ${x.hum == null ? '--' : Math.round(x.hum)}%</text>`
+  ];
+  let th = 62;
+  if (near) { lines.push(`<text x="10" y="71" style="fill:#9db8ff">${near.type === 'high' ? '▲ High' : '▼ Low'} tide ${fT(near.t)}</text>`); th = 80; }
+  const tw = 136;
+  const tx = px + 14 + tw > G.w - 4 ? px - 14 - tw : px + 14;
+  tip.innerHTML = `<rect width="${tw}" height="${th}" rx="9"/>` + lines.join('');
+  tip.setAttribute('transform', `translate(${tx.toFixed(1)},6)`);
+  tip.setAttribute('visibility', 'visible');
+  cur.setAttribute('transform', `translate(${px.toFixed(1)},0)`);
+  cur.querySelector('circle').setAttribute('cy', (x.temp != null ? G.Y(x.temp) : G.pB).toFixed(1));
+  cur.setAttribute('visibility', 'visible');
+}
+
+function scrub(e){
+  if (!G) return;
+  const r = $('chart').getBoundingClientRect();
+  const frac = (e.clientX - r.left - G.padL) / (r.width - G.padL - G.padR);
+  const t = G.t0 + Math.min(1, Math.max(0, frac)) * (G.tN - G.t0);
+  let best = 0;
+  hours.forEach((x, i) => { if (Math.abs(x.t - t) < Math.abs(hours[best].t - t)) best = i; });
+  select(best);
+  closeDetails();
+  clearTimeout(selTimer);
+  if (e.pointerType !== 'mouse' || e.buttons) selTimer = setTimeout(() => select(null), 6000);
+}
+const chart = $('chart');
+chart.addEventListener('pointerdown', e => { try { chart.setPointerCapture(e.pointerId); } catch (_) {} scrub(e); });
+chart.addEventListener('pointermove', scrub);
+chart.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') select(null); });
+
+const bar = $('bar');
+function closeDetails(){ bar.setAttribute('aria-expanded', 'false'); }
+function toggleDetails(){ bar.setAttribute('aria-expanded', bar.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); }
+bar.addEventListener('click', e => { if (!e.target.closest('.ibtn')) toggleDetails(); });
+bar.addEventListener('keydown', e => { if (e.target === bar && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleDetails(); } });
+$('details').addEventListener('click', e => e.stopPropagation());
+
+function render(){
+  derive();
+  renderBar();
+  renderDetails();
+  renderChart();
+}
+
+let loading = false;
+async function load(){
+  if (loading) return;
+  loading = true;
+  $('refresh').classList.add('spin');
+  const keys = Object.keys(URLS);
+  const res = await Promise.allSettled(keys.map(k => proxy(URLS[k])));
+  const failed = [];
+  res.forEach((r, i) => {
+    const k = keys[i];
+    let v = null;
+    if (r.status === 'fulfilled') { try { v = PICK[k](r.value); } catch (e) {} }
+    if (v != null) S[k] = v; else failed.push(k);
+  });
+  const coreFailed = failed.some(k => CORE.includes(k));
+  if (failed.length < keys.length && !coreFailed) {
+    S.at = Date.now();
+    S.stale = false;
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(S)); } catch (e) {}
+  } else if (coreFailed) {
+    S.stale = true;
+    emptyMsg = 'Couldn’t load the forecast. Tap ↻ to retry.';
+  }
+  render();
+  $('refresh').classList.remove('spin');
+  loading = false;
+}
+$('refresh').addEventListener('click', e => { e.stopPropagation(); load(); });
+
+/* =====================================================================
+   RADAR
+   ===================================================================== */
+/* Products. `tile` = layer on BOM's new zoomable map service; `id` = the older image product (still published for rainfall and Doppler). */
+const PRODUCTS = {
+  Z:{label:'Reflectivity', title:'Rain reflectivity (dBZ)', tile:'atm_surf_air_precip_reflectivity_dbz', bar:true},
+  W:{label:'Doppler wind', title:'Doppler wind', id:'IDR76I', range:3, legend:2},
+  B:{label:'1 hour',       title:'1 hour rainfall',      tile:'atm_surf_air_precip_accumulation_1hr_total_mm',  id:'IDR76B', range:3, legend:1, probe:true},
+  R:{label:'Rain rate',    title:'Rain rate (mm/h)',     tile:'atm_surf_air_precip_rate_1hr_total_mm_h',        id:'IDR76A', range:3, legend:1, probe:true, bar:true},
+  D:{label:'24 hour',      title:'24 hour rainfall',     tile:'atm_surf_air_precip_accumulation_24hr_total_mm', id:'IDR76D', range:3, legend:1, still:true, daily:true},
+  A:{label:'5 min',        title:'5 minute rainfall',    id:'IDR76A', range:3, legend:1, probe:true},
+  C:{label:'Since 9 am',   title:'Rainfall since 9 am',  id:'IDR76C', range:3, legend:1, still:true}
+};
+/* Map features for the older image products, in BOM's order. z = BOM's own stacking order (the radar frame is 0). */
+const LAYERS = [
+  {k:'observations',  label:'Weather observations', z:9,  def:false},
+  {k:'catchments',    label:'River catchments',     z:6,  def:false},
+  {k:'locations',     label:'Locations',            z:7,  def:true},
+  {k:'wthrDistricts', label:'Forecast districts',   z:5,  def:false},
+  {k:'range',         label:'Range',                z:2,  def:true},
+  {k:'roads',         label:'Roads',                z:3,  def:false},
+  {k:'topography',    label:'Topography',           z:-2, def:true},
+  {k:'rail',          label:'Railways',             z:4,  def:false},
+  {k:'waterways',     label:'Lakes &amp; major rivers', z:-1, def:false}
+];
+const TILEOPTS = [{k:'labels', label:'Place names'}, {k:'rings', label:'Range rings'}];
+const RKEY = 'hobart-radar-v1';
+/* The product always starts on 1 hour rainfall; only the map-feature choices are remembered. */
+const R = {prod:'B', mode:'tile', route:null, noTiles:false, frames:[], idx:0, playing:false, timer:0, failTimer:0, loadId:0, at:0, obs:null, layers:{}, tl:{labels:true, rings:true}, imgs:[], legendUrl:'', caps:null, capsAt:0, touched:false};
+try {
+  const s = JSON.parse(localStorage.getItem(RKEY) || 'null');
+  if (s) { R.layers = s.layers || {}; if (s.tl) Object.assign(R.tl, s.tl); }
+} catch (e) {}
+LAYERS.forEach(l => { if (R.layers[l.k] == null) R.layers[l.k] = l.def; });
+const saveRadar = () => { try { localStorage.setItem(RKEY, JSON.stringify({layers:R.layers, tl:R.tl})); } catch (e) {} };
+R.mode = PRODUCTS[R.prod].tile ? 'tile' : 'image';
+
+const absUrl = u => /^https?:/.test(u) ? u : BOM + u;
+const layerUrl = (k, p) => `${BOM}/products/radar_transparencies/IDR76${p.range}.${k}.png`;
+const stampMs = u => { const m = u.match(/\.T\.(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\.png/); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : NaN; };
+const stampStr = ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0'); return d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) + p(d.getUTCHours()) + p(d.getUTCMinutes()); };
+function loadImg(u, ms = 20000){
+  return new Promise(res => {
+    const i = new Image(); i.referrerPolicy = 'no-referrer';
+    const t = setTimeout(() => res(null), ms);
+    i.onload = () => { clearTimeout(t); res(i); };
+    i.onerror = () => { clearTimeout(t); res(null); };
+    i.src = u;
+  });
+}
+function setMsg(html){
+  const m = $(R.mode === 'tile' ? 'tmsg' : 'rmsg'), o = $(R.mode === 'tile' ? 'rmsg' : 'tmsg');
+  if (o) o.hidden = true;
+  if (m) { m.innerHTML = html || ''; m.hidden = !html; }
+}
+
+/* ---------- older image products: legend + background + features + frame, stacked ---------- */
+const layerEls = {};
+function stageInit(){
+  const st = $('stage');
+  const mk = (cls, z) => { const i = new Image(); i.className = cls; i.alt = ''; i.referrerPolicy = 'no-referrer'; i.style.zIndex = z; i.draggable = false; i.hidden = true; st.appendChild(i); return i; };
+  const leg = mk('leg', -4);
+  leg.onload = () => {
+    const w = leg.naturalWidth, h = leg.naturalHeight;
+    if (!w || !h) return;
+    $('stagewrap').style.setProperty('--ar', `${w} / ${h}`);
+    st.style.setProperty('--lw', (512 / w * 100) + '%');
+    st.style.setProperty('--lh', (512 / h * 100) + '%');
+    requestAnimationFrame(centerMap);
+  };
+  layerEls.legend = leg;
+  layerEls.background = mk('layer', -3);
+  LAYERS.forEach(l => { layerEls[l.k] = mk('layer', l.z); });
+  const fr = mk('frame', 0); fr.hidden = false;
+  layerEls.frame = fr;
+  Object.values(layerEls).forEach(el => { el.onerror = () => { el.hidden = true; }; });
+  leg.onerror = () => { leg.hidden = true; };
+  const m = document.createElement('div'); m.className = 'rmsg'; m.id = 'rmsg'; m.hidden = true; st.appendChild(m);
+}
+function applyLayers(){
+  const p = PRODUCTS[R.prod];
+  if (!p.range) return;
+  const show = (el, url, on) => { if (on && url) { if (el.getAttribute('src') !== url) el.src = url; el.hidden = false; } else el.hidden = true; };
+  show(layerEls.background, layerUrl('background', p), true);
+  LAYERS.forEach(l => {
+    const url = l.k === 'observations' ? R.obs : layerUrl(l.k, p);
+    show(layerEls[l.k], url, R.layers[l.k]);
+  });
+}
+function setLegend(type){
+  const url = `${BOM}/products/radar_transparencies/IDR.legend.${type}.png`;
+  if (R.legendUrl === url) return;
+  R.legendUrl = url; layerEls.legend.src = url; layerEls.legend.hidden = false;
+}
+/* image mode: start with the radar site (middle of the map) centred; the image fills the width and pans up/down */
+function centerMap(){
+  const sc = $('rscroll'), w = $('stagewrap');
+  if (!sc || sc.hidden || !w.clientHeight) return;
+  const lh = parseFloat($('stage').style.getPropertyValue('--lh')) || 91.92;
+  sc.scrollTop = Math.max(0, w.clientHeight * lh / 100 / 2 - sc.clientHeight / 2);
+}
+/* frame list for an image product: BOM's own loop page (via your proxy), else probe the 5-minute file names */
+async function discover(p){
+  const page = `${BOM}/products/${p.id}.loop.shtml`;
+  try {
+    const html = await proxy(page, 'text');
+    const fr = [...html.matchAll(/theImageNames\[\d+\]\s*=\s*"([^"]+)"/g)].map(m => absUrl(m[1]));
+    if (fr.length) {
+      const ty = html.match(/var\s+type\s*=\s*"(\d)"/), ob = html.match(/obsImg\[0\]\s*=\s*"([^"]+)"/);
+      return {frames:fr, type:ty ? +ty[1] : p.legend, obs:ob ? absUrl(ob[1]) : null};
+    }
+  } catch (e) {}
+  if (p.probe) {
+    const step = 5 * 60e3, base = Math.floor(Date.now() / step) * step;
+    const cands = [0, 1, 2, 3, 4, 5, 6].map(k => base - k * step);
+    const ok = await Promise.all(cands.map(t => loadImg(`${BOM}/radar/${p.id}.T.${stampStr(t)}.png`, 8000)));
+    const k = ok.findIndex(Boolean);
+    if (k >= 0) {
+      const frames = [];
+      for (let j = 6; j >= 0; j--) frames.push(`${BOM}/radar/${p.id}.T.${stampStr(cands[k] - j * step)}.png`);
+      return {frames, type:p.legend, obs:null};
+    }
+  }
+  return {frames:[], type:p.legend, obs:null};
+}
+async function loadImages(id, p){
+  const info = await discover(p);
+  if (id !== R.loadId) return;
+  R.obs = info.obs;
+  setLegend(info.type);
+  renderChips();
+  applyLayers();
+  let done = 0;
+  const imgs = await Promise.all(info.frames.map(u => loadImg(u).then(i => { if (id === R.loadId) setMsg(`Loading radar ${++done}/${info.frames.length}…`); return i ? {u, i, ms:stampMs(u)} : null; })));
+  if (id !== R.loadId) return;
+  $('rrefresh').classList.remove('spin');
+  R.frames = imgs.filter(Boolean);
+  R.imgs = R.frames.map(f => f.i);
+  if (!R.frames.length) {
+    setMsg(`Couldn’t load radar images from BOM.<br><a href="${BOM}/products/${p.id}.loop.shtml" target="_blank" rel="noopener">Open on BOM ↗</a>`);
+    $('slider').max = 0; $('ptime').textContent = '--';
+    layerEls.frame.hidden = true;
+    return;
+  }
+  setMsg('');
+  R.at = Date.now();
+  $('slider').max = R.frames.length - 1;
+  layerEls.frame.hidden = false;
+  showFrame(R.frames.length - 1);
+  if (!p.still && R.frames.length > 1) startPlay();
+  setPlayIcon();
+}
+
+/* =====================================================================
+   Zoomable tile map (BOM rain layers over a street map)
+   ===================================================================== */
+const OS = 20037508.342789244, RES0 = 156543.03392804097, ZMIN = 4, ZMAX = 9.5;
+const SITE = {lat:-43.112, lon:147.806};
+const toMerc = (lon, lat) => [6378137 * lon * Math.PI / 180, 6378137 * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360))];
+const [SX, SY] = toMerc(SITE.lon, SITE.lat);
+const CAPS_URL = API + 'mapping/timeseries/wmts/1.0.0/WMTSCapabilities.xml';
+/* BOM's tile grid (GoogleMapsCompatible_BoM): level, left edge x, top edge y, columns, rows. Replaced by the live values when they load. */
+const LEVELS_FALLBACK = [[0,11584952,34168990.685578,1,1],[1,11584952,14131482.342789,1,1],[2,11584952,4112728.171395,1,1],[3,11584952,4112728.171395,2,2],[4,11584952,1608039.628546,3,3],[5,11584952,355695.357122,6,5],[6,11584952,-270476.778591,11,9],[7,11584952,-583562.846447,22,17],[8,11584952,-740105.880375,43,33]]
+  .map(([l, x0, y0, mw, mh]) => ({l, x0, y0, mw, mh}));
+let LEVELS = LEVELS_FALLBACK;
+const EXTENT = {x0:11584952, x1:18194959, y0:-5906026, y1:-823673};
+const M = {cx:SX, cy:SY, z:8, w:0, h:0};
+const T = {ok:0, err:0};
+const RAINBAR = ['245,245,255','180,180,255','120,120,255','20,20,255','0,216,195','0,150,144','0,102,102','255,255,0','255,200,0','255,150,0','255,100,0','255,0,0','200,0,0','120,0,0','40,0,0'];
+
+class TileSet {
+  constructor(parent, track){ this.p = parent; this.m = new Map(); this.track = track; }
+  sync(list){
+    const keep = new Set();
+    for (const d of list) {
+      keep.add(d.k);
+      let im = this.m.get(d.k);
+      if (!im) {
+        im = new Image(); im.referrerPolicy = 'no-referrer'; im.alt = ''; im.draggable = false;
+        if (this.track) { im.onload = () => { T.ok++; }; im.onerror = () => { T.err++; im.style.display = 'none'; }; }
+        else im.onerror = () => { im.style.display = 'none'; };
+        im.src = d.url;
+        this.p.appendChild(im); this.m.set(d.k, im);
+      }
+      im.style.left = d.l + 'px'; im.style.top = d.t + 'px'; im.style.width = d.w + 'px'; im.style.height = d.h + 'px';
+    }
+    for (const [k, im] of this.m) if (!keep.has(k)) { im.remove(); this.m.delete(k); }
+  }
+}
+let baseSet, labelSet;
+function mapInit(){
+  baseSet = new TileSet($('mBase'), false);
+  labelSet = new TileSet($('mLabels'), false);
+}
+const clampZ = z => Math.max(ZMIN, Math.min(ZMAX, z));
+function clampCenter(){
+  M.cx = Math.max(EXTENT.x0, Math.min(EXTENT.x1, M.cx));
+  M.cy = Math.max(EXTENT.y0, Math.min(EXTENT.y1, M.cy));
+}
+function defaultZoom(){ return window.matchMedia && window.matchMedia('(orientation:portrait)').matches ? 7 : 8; }
+function resetView(){ M.cx = SX; M.cy = SY; M.z = defaultZoom(); R.touched = false; scheduleLayout(); }
+function resizeMap(){
+  const mp = $('rmap');
+  if (mp.hidden) return;
+  const w = mp.clientWidth, h = mp.clientHeight;
+  if (!w || !h) return;
+  const first = !M.w;
+  M.w = w; M.h = h;
+  if (first || !R.touched) { M.z = defaultZoom(); M.cx = SX; M.cy = SY; }
+  scheduleLayout();
+}
+let layoutQ = 0;
+function scheduleLayout(){ if (layoutQ) return; layoutQ = requestAnimationFrame(() => { layoutQ = 0; layoutMap(); }); }
+
+function bomUrl(layer, iso, L, row, col){
+  const u = `${API}mapping/timeseries/wmts/1.0.0/${layer}/default/${iso}/GoogleMapsCompatible_BoM/${L}/${row}/${col}.png`;
+  return R.route === 'proxy' ? PROXY + encodeURIComponent(u) : u;
+}
+function layoutMap(){
+  if (R.mode !== 'tile') return;
+  const w = M.w, h = M.h;
+  if (!w || !h) return;
+  const resV = RES0 / Math.pow(2, M.z);
+  const x0 = M.cx - w / 2 * resV, x1 = x0 + w * resV, yT = M.cy + h / 2 * resV, yB = yT - h * resV;
+  const rect = (leftM, topM, span) => {
+    const l = (leftM - x0) / resV, t = (yT - topM) / resV, s = span / resV;
+    const L = Math.round(l), Tt = Math.round(t);
+    return {l:L, t:Tt, w:Math.round(l + s) - L, h:Math.round(t + s) - Tt};
+  };
+  /* standard web-mercator street map */
+  const Lb = Math.max(0, Math.min(18, Math.round(M.z)));
+  {
+    const span = 256 * RES0 / Math.pow(2, Lb), n = Math.pow(2, Lb);
+    const c0 = Math.max(0, Math.floor((x0 + OS) / span)), c1 = Math.min(n - 1, Math.floor((x1 + OS) / span));
+    const r0 = Math.max(0, Math.floor((OS - yT) / span)), r1 = Math.min(n - 1, Math.floor((OS - yB) / span));
+    const base = [], lab = [];
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+      const g = rect(-OS + c * span, OS - r * span, span), sub = 'abcd'[(r + c) % 4];
+      base.push({k:`${Lb}/${r}/${c}`, url:`https://${sub}.basemaps.cartocdn.com/light_nolabels/${Lb}/${c}/${r}.png`, ...g});
+      lab.push({k:`${Lb}/${r}/${c}`, url:`https://${sub}.basemaps.cartocdn.com/light_only_labels/${Lb}/${c}/${r}.png`, ...g});
+    }
+    baseSet.sync(base);
+    labelSet.sync(R.tl.labels ? lab : []);
+  }
+  /* BOM rain tiles, one set per time step (only the current step is visible) */
+  const p = PRODUCTS[R.prod];
+  if (p.tile && R.frames.length && R.frames[0].set) {
+    const Lm = Math.max(0, Math.min(8, Math.round(M.z))), lv = LEVELS.find(v => v.l === Lm) || LEVELS[LEVELS.length - 1];
+    const span = 256 * RES0 / Math.pow(2, lv.l);
+    const c0 = Math.max(0, Math.floor((x0 - lv.x0) / span)), c1 = Math.min(lv.mw - 1, Math.floor((x1 - lv.x0) / span));
+    const r0 = Math.max(0, Math.floor((lv.y0 - yT) / span)), r1 = Math.min(lv.mh - 1, Math.floor((lv.y0 - yB) / span));
+    for (const f of R.frames) {
+      const list = [];
+      for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+        list.push({k:`${lv.l}/${r}/${c}`, url:bomUrl(p.tile, f.iso, lv.l, r, c), ...rect(lv.x0 + c * span, lv.y0 - r * span, span)});
+      }
+      f.set.sync(list);
+    }
+  }
+  drawRings(x0, yT, resV);
+}
+function drawRings(x0, yT, resV){
+  const svg = $('mRings');
+  if (!R.tl.rings) { svg.innerHTML = ''; return; }
+  const sx = (SX - x0) / resV, sy = (yT - SY) / resV, k = 1 / Math.cos(SITE.lat * Math.PI / 180);
+  let s = `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="4" fill="#10212e" stroke="#fff" stroke-width="2"/>`;
+  [64, 128, 256].forEach(km => {
+    const r = km * 1000 * k / resV;
+    s += `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${r.toFixed(1)}" fill="none" stroke="rgba(16,33,46,.55)" stroke-width="1.3" stroke-dasharray="5 5"/>`
+       + `<text x="${sx.toFixed(1)}" y="${(sy - r - 3).toFixed(1)}" text-anchor="middle">${km} km</text>`;
+  });
+  svg.innerHTML = s;
+}
+function zoomAround(px, py, z){
+  z = clampZ(z);
+  const resO = RES0 / Math.pow(2, M.z), resN = RES0 / Math.pow(2, z);
+  const X = M.cx + (px - M.w / 2) * resO, Y = M.cy - (py - M.h / 2) * resO;
+  M.z = z; M.cx = X - (px - M.w / 2) * resN; M.cy = Y + (py - M.h / 2) * resN;
+  clampCenter(); R.touched = true; scheduleLayout();
+}
+function panBy(dx, dy){
+  const res = RES0 / Math.pow(2, M.z);
+  M.cx -= dx * res; M.cy += dy * res; clampCenter(); R.touched = true; scheduleLayout();
+}
+/* touch / mouse: drag to pan, pinch or wheel to zoom, double-tap to zoom in, tap to play/pause */
+(function gestures(){
+  const mp = $('rmap'), ptrs = new Map();
+  let g = null, tapTimer = 0, lastTap = {t:0, x:0, y:0};
+  const rel = e => { const r = mp.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; };
+  const pair = () => { const v = [...ptrs.values()]; return {d:Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) || 1, x:(v[0].x + v[1].x) / 2, y:(v[0].y + v[1].y) / 2}; };
+  mp.addEventListener('pointerdown', e => {
+    if (e.target.closest('.mctl')) return;
+    try { mp.setPointerCapture(e.pointerId); } catch (_) {}
+    ptrs.set(e.pointerId, rel(e));
+    g = {moved:ptrs.size > 1, t:Date.now(), sx:e.clientX, sy:e.clientY, pinch:ptrs.size === 2 ? pair() : null};
+  });
+  mp.addEventListener('pointermove', e => {
+    if (!ptrs.has(e.pointerId)) return;
+    const prev = ptrs.get(e.pointerId), cur = rel(e);
+    ptrs.set(e.pointerId, cur);
+    if (g && Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > 8) g.moved = true;
+    if (ptrs.size === 1) { if (g && g.moved) panBy(cur.x - prev.x, cur.y - prev.y); }
+    else if (ptrs.size === 2 && g && g.pinch) {
+      const n = pair(), o = g.pinch;
+      panBy(n.x - o.x, n.y - o.y);
+      zoomAround(n.x, n.y, M.z + Math.log2(n.d / o.d));
+      g.pinch = n; g.moved = true;
+    }
+  });
+  const end = e => {
+    if (!ptrs.has(e.pointerId)) return;
+    const wasOne = ptrs.size === 1, cur = rel(e);
+    ptrs.delete(e.pointerId);
+    if (ptrs.size === 1 && g) { g.pinch = null; g.moved = true; }
+    if (wasOne && g && !g.moved && e.type === 'pointerup' && Date.now() - g.t < 500) {
+      const now = Date.now();
+      if (tapTimer && Math.hypot(cur.x - lastTap.x, cur.y - lastTap.y) < 40) { clearTimeout(tapTimer); tapTimer = 0; zoomAround(cur.x, cur.y, Math.round(M.z) + 1); }
+      else { lastTap = {t:now, x:cur.x, y:cur.y}; tapTimer = setTimeout(() => { tapTimer = 0; mapTap(); }, 260); }
+    }
+    if (!ptrs.size) g = null;
+  };
+  mp.addEventListener('pointerup', end);
+  mp.addEventListener('pointercancel', end);
+  mp.addEventListener('wheel', e => { e.preventDefault(); const c = rel(e); zoomAround(c.x, c.y, M.z - e.deltaY * 0.0015); }, {passive:false});
+  $('zIn').addEventListener('click', () => zoomAround(M.w / 2, M.h / 2, Math.round(M.z) + 1));
+  $('zOut').addEventListener('click', () => zoomAround(M.w / 2, M.h / 2, Math.round(M.z) - 1));
+  $('zHome').addEventListener('click', resetView);
 })();
-(function(){
-  const b = document.getElementById('banner');
-  const t = () => b.setAttribute('aria-expanded', b.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
-  b.addEventListener('click', t);
-  b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t(); } });
-  document.querySelector('.main-container').addEventListener('click', () => b.setAttribute('aria-expanded', 'false'));
-})();
+function mapTap(){
+  if (rbar.getAttribute('aria-expanded') === 'true') { closeR(); return; }
+  R.playing ? stopPlay() : startPlay();
+}
+
+/* BOM's tile service: layer list, frame times and tile grid come from its capabilities file */
+function parseCaps(xml){
+  const layers = {};
+  for (const m of xml.matchAll(/<Layer>([\s\S]*?)<\/Layer>/g)) {
+    const b = m[1], id = (b.match(/<ows:Identifier>([^<]+)<\/ows:Identifier>/) || [])[1];
+    if (id) layers[id] = {times:[...b.matchAll(/<Value>([^<]+)<\/Value>/g)].map(x => x[1])};
+  }
+  let levels = null;
+  const set = xml.match(/<TileMatrixSet>\s*<ows:Identifier>GoogleMapsCompatible_BoM<\/ows:Identifier>([\s\S]*?)<\/TileMatrixSet>/);
+  if (set) {
+    levels = [...set[1].matchAll(/<TileMatrix>([\s\S]*?)<\/TileMatrix>/g)].map(t => {
+      const g = tag => (t[1].match(new RegExp(`<${tag}>([^<]+)</${tag}>`)) || [])[1];
+      const tl = (g('TopLeftCorner') || '').split(/\s+/).map(Number);
+      return {l:+t[1].match(/<ows:Identifier>([^<]+)</)[1], x0:tl[0], y0:tl[1], mw:+g('MatrixWidth'), mh:+g('MatrixHeight')};
+    }).filter(v => isFinite(v.x0) && isFinite(v.y0) && v.mw > 0);
+    if (!levels.length) levels = null;
+  }
+  return {layers, levels};
+}
+async function getCaps(){
+  if (R.caps && Date.now() - R.capsAt < 4 * 60e3) return R.caps;
+  const xml = await proxy(CAPS_URL, 'text');
+  R.caps = parseCaps(xml); R.capsAt = Date.now();
+  return R.caps;
+}
+/* can the browser fetch BOM tiles directly, or only through your proxy? */
+async function pickRoute(layer, iso){
+  const lv = LEVELS.find(v => v.l === 8) || LEVELS[LEVELS.length - 1], span = 256 * RES0 / Math.pow(2, lv.l);
+  const col = Math.floor((SX - lv.x0) / span), row = Math.floor((lv.y0 - SY) / span);
+  R.route = 'direct';
+  const url = bomUrl(layer, iso, lv.l, row, col);
+  if (await loadImg(url, 7000)) return;
+  R.route = 'proxy';
+  if (await loadImg(bomUrl(layer, iso, lv.l, row, col), 10000)) return;
+  R.route = 'direct';
+}
+function setLegendBar(p){
+  const el = $('mLeg');
+  if (!p.bar) { el.hidden = true; return; }
+  el.innerHTML = `<div class="lgbar">${RAINBAR.map(c => `<i style="background:rgb(${c})"></i>`).join('')}</div><div class="lglb"><span>Light</span><span>Moderate</span><span>Heavy</span></div>`;
+  el.hidden = false;
+}
+async function loadTiles(id, p){
+  let caps;
+  try { caps = await getCaps(); } catch (e) { return tilesFailed(id, p); }
+  if (id !== R.loadId) return;
+  const info = caps.layers[p.tile];
+  if (!info || !info.times.length) return tilesFailed(id, p);
+  if (caps.levels) LEVELS = caps.levels;
+  const times = [...info.times].sort();
+  if (!R.route) { await pickRoute(p.tile, times[times.length - 1]); if (id !== R.loadId) return; }
+  const mData = $('mData');
+  mData.innerHTML = '';
+  R.frames = times.map(iso => { const el = document.createElement('div'); el.className = 'fr'; mData.appendChild(el); return {iso, ms:Date.parse(iso), el, set:new TileSet(el, true)}; });
+  T.ok = 0; T.err = 0;
+  $('slider').max = R.frames.length - 1;
+  setLegendBar(p);
+  resizeMap();
+  layoutMap();
+  setMsg('');
+  $('rrefresh').classList.remove('spin');
+  R.at = Date.now();
+  showFrame(R.frames.length - 1);
+  if (!p.still && R.frames.length > 1) startPlay();
+  setPlayIcon();
+  clearTimeout(R.failTimer);
+  R.failTimer = setTimeout(() => { if (id === R.loadId && T.ok === 0 && T.err > 0) tilesFailed(id, p); }, 9000);
+}
+/* BOM's tiles wouldn't load: use the older image product if there is one */
+function tilesFailed(id, p){
+  if (id !== R.loadId) return;
+  R.noTiles = true;
+  if (p.id) { loadRadar(); return; }
+  $('rrefresh').classList.remove('spin');
+  setMsg(`Couldn’t load BOM’s map tiles for this layer.<br><a href="${BOM}/weather-and-climate/rain-radar-and-weather-maps?radar=76-hobart-%28mt-koonya%29" target="_blank" rel="noopener">Open on BOM ↗</a>`);
+}
+
+/* ---------- chips, loading, frames ---------- */
+function renderChips(){
+  const chip = k => `<button class="chip${k === R.prod ? ' on' : ''}" type="button" data-p="${k}" aria-pressed="${k === R.prod}">${PRODUCTS[k].label}</button>`;
+  $('chipsRadar').innerHTML = ['Z', 'W'].map(chip).join('');
+  $('chipsRain').innerHTML = ['B', 'R', 'D', 'A', 'C'].map(chip).join('');
+  if (R.mode === 'tile') {
+    $('chipsLayers').innerHTML = TILEOPTS.map(o => `<button class="chip${R.tl[o.k] ? ' on' : ''}" type="button" data-t="${o.k}" aria-pressed="${!!R.tl[o.k]}">${o.label}</button>`).join('');
+    $('acts').hidden = true;
+  } else {
+    $('chipsLayers').innerHTML = LAYERS.map(l => {
+      const off = l.k === 'observations' && !R.obs;
+      return `<button class="chip${R.layers[l.k] && !off ? ' on' : ''}" type="button" data-l="${l.k}" aria-pressed="${!!R.layers[l.k]}"${off ? ' disabled' : ''}>${l.label}</button>`;
+    }).join('');
+    $('acts').hidden = false;
+  }
+  $('rtitle').textContent = PRODUCTS[R.prod].title;
+}
+function setMode(m){
+  R.mode = m;
+  $('rscroll').hidden = m !== 'image';
+  $('rmap').hidden = m !== 'tile';
+}
+async function loadRadar(){
+  const id = ++R.loadId, p = PRODUCTS[R.prod];
+  stopPlay();
+  clearTimeout(R.failTimer);
+  $('rrefresh').classList.add('spin');
+  const tile = !!p.tile && !R.noTiles;
+  setMode(tile ? 'tile' : 'image');
+  R.frames = [];
+  renderChips();
+  if (tile) { setMsg('Loading radar…'); return loadTiles(id, p); }
+  if (!p.id) { $('rrefresh').classList.remove('spin'); setMsg('This layer needs BOM’s map tiles, which didn’t load.'); return; }
+  requestAnimationFrame(centerMap);
+  setMsg('Loading radar…');
+  return loadImages(id, p);
+}
+
+function showFrame(i){
+  if (!R.frames.length) return;
+  R.idx = Math.max(0, Math.min(i, R.frames.length - 1));
+  if (R.mode === 'tile') R.frames.forEach((f, j) => f.el.classList.toggle('on', j === R.idx));
+  else layerEls.frame.src = R.frames[R.idx].u;
+  $('slider').value = R.idx;
+  updTime();
+}
+function updTime(){
+  const f = R.frames[R.idx], p = PRODUCTS[R.prod];
+  if (!f || isNaN(f.ms)) { $('ptime').textContent = '--'; return; }
+  if (R.mode === 'tile' && p.daily) { const q = lp(f.ms); $('ptime').innerHTML = `<b>${q.wd} ${q.d}</b>`; return; }
+  const age = Math.round((Date.now() - f.ms) / 60e3);
+  $('ptime').innerHTML = `<b>${fT(f.ms)}</b> · ${age < 1 ? 'just now' : age < 90 ? age + ' min ago' : Math.round(age / 60) + ' h ago'}`;
+}
+const ICON_PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+function setPlayIcon(){ $('pbtn').innerHTML = R.playing ? ICON_PAUSE : ICON_PLAY; $('pbtn').setAttribute('aria-label', R.playing ? 'Pause' : 'Play'); }
+function tick(){
+  clearTimeout(R.timer);
+  if (!R.playing) return;
+  const last = R.idx === R.frames.length - 1;
+  R.timer = setTimeout(() => { showFrame(last ? 0 : R.idx + 1); tick(); }, last ? 1400 : 450);
+}
+function startPlay(){ if (R.frames.length < 2) return; R.playing = true; setPlayIcon(); tick(); }
+function stopPlay(){ R.playing = false; clearTimeout(R.timer); setPlayIcon(); }
+
+const rbar = $('rbar');
+const closeR = () => rbar.setAttribute('aria-expanded', 'false');
+const toggleR = () => rbar.setAttribute('aria-expanded', rbar.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+rbar.addEventListener('click', e => { if (!e.target.closest('.ibtn, .pill')) toggleR(); });
+rbar.addEventListener('keydown', e => { if (e.target === rbar && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleR(); } });
+$('stage').addEventListener('click', mapTap);
+$('pbtn').addEventListener('click', () => R.playing ? stopPlay() : startPlay());
+$('slider').addEventListener('input', e => { stopPlay(); showFrame(+e.target.value); });
+$('rrefresh').addEventListener('click', () => { R.noTiles = false; R.route = null; R.caps = null; loadRadar(); });
+
+$('panel').addEventListener('click', e => {
+  e.stopPropagation();
+  const pb = e.target.closest('[data-p]'), lb = e.target.closest('[data-l]'), tb = e.target.closest('[data-t]'), ab = e.target.closest('[data-act]');
+  if (pb) {
+    if (pb.dataset.p === R.prod) return;
+    R.prod = pb.dataset.p; R.obs = null; R.touched = false; loadRadar();
+  } else if (tb) {
+    R.tl[tb.dataset.t] = !R.tl[tb.dataset.t]; saveRadar(); renderChips(); scheduleLayout();
+  } else if (lb && !lb.disabled) {
+    R.layers[lb.dataset.l] = !R.layers[lb.dataset.l]; saveRadar(); renderChips(); applyLayers();
+  } else if (ab) {
+    LAYERS.forEach(l => { R.layers[l.k] = ab.dataset.act === 'hide' ? false : ab.dataset.act === 'show' ? true : l.def; });
+    saveRadar(); renderChips(); applyLayers();
+  }
+});
+
+/* =====================================================================
+   PAGES + LIFECYCLE
+   ===================================================================== */
+function route(){
+  const v = location.hash === '#radar' ? 'radar' : 'chart';
+  document.body.dataset.view = v;
+  $('view-chart').hidden = v !== 'chart';
+  $('view-radar').hidden = v !== 'radar';
+  closeR();
+  if (v === 'chart') { stopPlay(); closeDetails(); renderChart(); }
+  else {
+    requestAnimationFrame(() => { resizeMap(); centerMap(); });
+    if (!R.at || Date.now() - R.at > 5 * 60e3 || !R.frames.length) loadRadar();
+    else if (R.frames.length > 1 && !PRODUCTS[R.prod].still) startPlay();
+  }
+}
+$('radarbtn').addEventListener('click', e => { e.stopPropagation(); location.hash = '#radar'; });
+$('rotRadar').addEventListener('click', () => { location.hash = '#radar'; });
+$('back').addEventListener('click', () => { location.hash = '#chart'; });
+window.addEventListener('hashchange', route);
+
+document.addEventListener('visibilitychange', () => {
+  const onRadar = document.body.dataset.view === 'radar';
+  if (document.hidden) { if (onRadar) stopPlay(); return; }
+  if (onRadar) { if (Date.now() - R.at > 5 * 60e3) loadRadar(); }
+  else if (Date.now() - S.at > 10 * 60e3) load();
+});
+setInterval(() => {
+  if (document.hidden) return;
+  if (document.body.dataset.view === 'radar') { updTime(); if (Date.now() - R.at > 5 * 60e3) loadRadar(); }
+  else if (Date.now() - S.at > 15 * 60e3) load();
+}, 60e3);
+window.addEventListener('resize', () => { renderChart(); resizeMap(); });
+window.addEventListener('orientationchange', () => setTimeout(() => { renderChart(); resizeMap(); centerMap(); }, 250));
+if (window.ResizeObserver) { new ResizeObserver(() => renderChart()).observe($('chartwrap')); new ResizeObserver(() => resizeMap()).observe($('rmap')); }
+
+stageInit();
+mapInit();
+renderChips();
+setPlayIcon();
+setMode(R.mode);
+if (S.at) render();
+route();
+load();
 </script>
 
 <script>
 /* BUILD STAMP: on EVERY code change set BUILD_STAMP to the current local time (YYYY-MM-DD HH:MM:SS).
    If no clock is available set BUILD_STAMP = 'unknown' and increment BUILD_VERSION; with a clock set BUILD_VERSION = null. */
-const BUILD_STAMP   = '2026-11-13 10:59:08'; // BUILD_STAMP
+const BUILD_STAMP   = '2026-11-16 11:18:24'; // BUILD_STAMP
 const BUILD_VERSION = null;                  // BUILD_VERSION
 const BUILD_NOTE    = 'AI had no clock access — version bumped.';
 document.getElementById('build').textContent = BUILD_STAMP !== 'unknown'
